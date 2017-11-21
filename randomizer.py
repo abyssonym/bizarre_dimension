@@ -158,9 +158,7 @@ class MapEventObject(GetByPointerMixin, TableObject):
     @cached_property
     def friend(self):
         candidates = []
-        for me in MapEventObject.every:
-            if not me.is_exit:
-                continue
+        for me in MapEventObject.all_exits:
             mezone = me.destination_zone
             if mezone.muspal_signature == self.zone.muspal_signature:
                 candidates.append(me)
@@ -183,7 +181,7 @@ class MapEventObject(GetByPointerMixin, TableObject):
     @cached_property
     def neighbors(self):
         neighbors = set([
-            me for me in MapEventObject.every
+            me for me in MapEventObject.all_exits
             if me.old_data["event_index"] == self.old_data["event_index"]
             and me.zone.muspal_signature == self.zone.muspal_signature
             and self.get_distance(me.global_x, me.global_y) <= 100])
@@ -203,6 +201,25 @@ class MapEventObject(GetByPointerMixin, TableObject):
     @property
     def is_exit(self):
         return self.event_type == 2
+
+    @classproperty
+    def all_exits(self):
+        if hasattr(MapEventObject, "_all_exits"):
+            return MapEventObject._all_exits
+
+        all_exits = [meo for meo in MapEventObject.every if meo.is_exit]
+        MapEventObject._all_exits = all_exits
+        return MapEventObject.all_exits
+
+    @classproperty
+    def mutual_exits(self):
+        if hasattr(MapEventObject, "_mutual_exits"):
+            return MapEventObject._mutual_exits
+
+        mutual_exits = [meo for meo in MapEventObject.all_exits
+                        if meo.has_mutual_friend]
+        MapEventObject._mutual_exits = mutual_exits
+        return MapEventObject.mutual_exits
 
     @cached_property
     def zone(self):
@@ -367,9 +384,8 @@ class Cluster():
 
     def add_exit(self, s):
         meid, x, y = map(lambda v: int(v, 0x10), s.split())
-        candidates = [
-            c for c in MapEventObject.every if c.is_exit
-            and c.global_x == x and c.global_y == y and c.has_mutual_friend]
+        candidates = [c for c in MapEventObject.mutual_exits
+                      if c.global_x == x and c.global_y == y]
         if len(candidates) < 1:
             raise KeyError
         assert len(candidates) == 1
