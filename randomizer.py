@@ -18,6 +18,63 @@ ALL_OBJECTS = None
 DEBUG_MODE = False
 
 
+def load_areas(area_filename=None):
+    if area_filename is None:
+        area_filename = path.join(tblpath, "areas.txt")
+    area_label = (None, "")
+    areadict = defaultdict(set)
+    for line in open(area_filename):
+        if not line.strip():
+            area_label = (None, "")
+            continue
+        if line.startswith(":"):
+            area_label = (None, line[1:])
+            continue
+        cells = set([])
+        for word in line.split():
+            if word == "....":
+                continue
+            cells.add(int(word, 0x10))
+        for c in sorted(cells):
+            newcells = set([c|0x80, c|1, c|0x81, c|2, c|0x82, c|3, c|0x83])
+            assert not cells & newcells
+            cells |= newcells
+
+        if isinstance(area_label, tuple):
+            area_label = "{0:0>4} {1}".format("%x" % min(cells), area_label[1])
+            area_label = area_label.strip()
+        assert isinstance(area_label, basestring)
+        areadict[area_label] |= set(cells)
+    return areadict
+
+
+class Area:
+    def __init__(self, label, cells):
+        self.label = label
+        self.cells = sorted(cells)
+        for ec in self.enemy_cells:
+            ec.set_area(self)
+
+    @cached_property
+    def enemy_cells(self):
+        return [m for m in MapEnemyObject.every if m.index in self.cells]
+
+    @classproperty
+    def all_areas(self):
+        if hasattr(Area, "_all_areas"):
+            return Area._all_areas
+
+        areas = load_areas()
+        all_areas = []
+        for key in sorted(areas):
+            cells = areas[key]
+            all_areas.append(Area(key, cells))
+
+        Area._all_areas = all_areas
+
+        return Area.all_areas
+
+
 class GridMixin(object):
     max_rows = 320
     max_columns = 256
@@ -52,6 +109,14 @@ class GridMixin(object):
         y1 = self.cell_size * self.grid_y * self.height
         y2 = self.cell_size * (self.grid_y+1) * self.height
         return y1, y2
+
+    @property
+    def center_x(self):
+        return sum(self.x_bounds) / 2
+
+    @property
+    def center_y(self):
+        return sum(self.y_bounds) / 2
 
     def contains(self, other, lenience=0):
         x11, x12 = self.x_bounds
@@ -221,6 +286,13 @@ class MapEventObject(GetByPointerMixin, TableObject):
         MapEventObject._mutual_exits = mutual_exits
         return MapEventObject.mutual_exits
 
+    @property
+    def cave_rank(self):
+        cluster = Cluster.get_by_exit(self)
+        if cluster is not None:
+            return cluster.rank
+        return None
+
     @cached_property
     def zone(self):
         candidates = [z for z in ZoneEventObject.every
@@ -242,6 +314,14 @@ class MapEventObject(GetByPointerMixin, TableObject):
         assert y1 <= y <= y2
         return y
 
+    @property
+    def x_bounds(self):
+        return (self.global_x, self.global_x)
+
+    @property
+    def y_bounds(self):
+        return (self.global_y, self.global_y)
+
     @cached_property
     def enemy_cell(self):
         me = MapEnemyObject.get_by_pixel(self.global_x, self.global_y)
@@ -259,6 +339,58 @@ class MapSpriteObject(GetByPointerMixin, TableObject):
 class MapEnemyObject(GridMixin, TableObject):
     rows = 160
     columns = 128
+
+    def set_area(self, area):
+        self._area = area
+
+    @property
+    def area(self):
+        if hasattr(self, "_area"):
+            return self._area
+        return None
+
+    @property
+    def canonical_exit(self):
+        if hasattr(self, "_canonical_exit"):
+            return self._canonical_exit
+
+        for area in Area.all_areas:
+            neighbors = area.enemy_cells
+            exits = [meo for meo in MapEventObject.mutual_exits
+                     if meo.enemy_cell in neighbors
+                     and meo.cave_rank is not None]
+            for n in neighbors:
+                if not exits:
+                    n._canonical_exit = None
+                    continue
+
+                measurer = lambda x: ((abs(n.center_x - x.global_x) +
+                                       abs(n.center_y - x.global_y)), x.index)
+
+                temp = [x for x in exits if x.enemy_cell is n]
+                if not temp:
+                    temp = exits
+                temp = sorted(temp, key=measurer)
+
+                n._canonical_exit = temp[0]
+
+        assert hasattr(self, "_canonical_exit")
+        return self.canonical_exit
+
+    @property
+    def cave_rank(self):
+        if hasattr(self, "_cave_rank"):
+            return self._cave_rank
+
+        chosen = self.canonical_exit
+        if chosen is None:
+            return None
+
+        rank = chosen.cave_rank
+        if rank is not None:
+            self._cave_rank = rank
+            return self.cave_rank
+        return None
 
     @cached_property
     def palette(self):
@@ -364,7 +496,9 @@ class Cluster():
 
     @property
     def rank(self):
-        return self._rank
+        if hasattr(self, "_rank"):
+            return self._rank
+        return None
 
     @classproperty
     def ranked_clusters(self):
@@ -477,7 +611,9 @@ class Cluster():
 
         clus = [clu for clu in Cluster.generate_clusters()
                 if exit in clu.exits]
-        assert len(clus) == 1
+        assert len(clus) <= 1
+        if not clus:
+            return None
         Cluster._exitdict[exit] = clus[0]
         return Cluster.get_by_exit(exit)
 
@@ -703,6 +839,9 @@ if __name__ == "__main__":
         minmax = lambda x: (min(x), max(x))
 
         generate_cave()
+
+        for meo in MapEnemyObject.every:
+            meo.cave_rank
 
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)
