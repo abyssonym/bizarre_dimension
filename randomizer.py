@@ -75,6 +75,115 @@ class Area:
         return Area.all_areas
 
 
+class Script:
+    _all_scripts = []
+
+    def __init__(self, pointer, endpointer=None):
+        for s in Script._all_scripts:
+            assert s.pointer != pointer
+        self.pointer = pointer
+        self.endpointer = endpointer
+        self.read_script()
+        Script._all_scripts.append(self)
+
+    @classproperty
+    def scriptdict(self):
+        if hasattr(Script, "_scriptdict"):
+            return Script._scriptdict
+
+        scriptdict = {}
+        for line in open(path.join(tblpath, "instructions.txt")):
+            line = line.strip()
+            instruction, description = line.split(':')
+            instruction = instruction.strip()
+            description = description.strip()
+            try:
+                key = [int(v, 0x10) for v in instruction.split()[:2]]
+            except ValueError:
+                key = [int(v, 0x10) for v in instruction.split()[:1]]
+            key = tuple(key)
+
+            if key == (0x09,):
+                scriptdict[key] = (instruction, description, None)
+                continue
+
+            length = len(instruction.split())
+            assert key not in scriptdict
+            scriptdict[key] = (instruction, description, length)
+
+        Script._scriptdict = scriptdict
+        return Script.scriptdict
+
+    def read_script(self):
+        f = open(get_outfile(), "r+b")
+        pointer = self.pointer
+        self.lines = []
+        while True:
+            f.seek(pointer)
+            key = (ord(f.read(1)),)
+            if key not in self.scriptdict:
+                f.seek(pointer)
+                key = tuple(map(ord, f.read(2)))
+            assert key in self.scriptdict
+            instruction, description, length = self.scriptdict[key]
+
+            if length is None:
+                f.seek(pointer+1)
+                numargs = ord(f.read(1))
+                length = 2 + (numargs*4)
+                import pdb; pdb.set_trace()
+
+            f.seek(pointer)
+            line = tuple(map(ord, f.read(length)))
+            self.lines.append(line)
+            pointer += length
+            if key == (0x02,) and (
+                    self.endpointer is None or pointer >= self.endpointer):
+                break
+        f.close()
+        self.old_length = self.length
+
+    def write_script(self, pointer=None):
+        if pointer is None:
+            pointer = self.pointer
+            assert self.length <= self.old_length
+        f = open(get_outfile(), "r+b")
+        f.seek(pointer)
+        s = ""
+        for line in self.lines:
+            s += "".join(map(chr, line))
+        f.write(s)
+        f.close()
+
+    @classmethod
+    def get_pretty_line_description(self, line):
+        key = (line[0],)
+        if key not in self.scriptdict:
+            key = tuple(line[:2])
+        instruction, description, length = self.scriptdict[key]
+        pretty_line = " ".join(["{0:0>2}".format("%x" % v) for v in line])
+        return pretty_line, description
+
+    @property
+    def pretty_script(self):
+        pretty_lines = []
+        descriptions = []
+        for line in self.lines:
+            pretty_line, description = self.get_pretty_line_description(line)
+            pretty_lines.append(pretty_line)
+            descriptions.append(description)
+        max_length = max([len(pl) for pl in pretty_lines])
+        s = ""
+        for pretty_line, description in zip(pretty_lines, descriptions):
+            pretty_line = ("{0:%s}" % (max_length)).format(pretty_line)
+            s += "%s : %s\n" % (pretty_line, description)
+        return s.strip()
+
+    @property
+    def length(self):
+        return sum([len(line) for line in self.lines])
+
+
 class GridMixin(object):
     max_rows = 320
     max_columns = 256
@@ -334,6 +443,13 @@ class MapSpriteObject(GetByPointerMixin, TableObject):
         return "{0:0>2} {1:0>2} {3:0>5} {2:0>4}".format(
             *["%x" % v for v in [self.x, self.y, self.tpt_number,
                                  self.pointer]])
+
+    @property
+    def tpt(self):
+        return TPTObject.get(self.tpt_number)
+
+
+class TPTObject(TableObject): pass
 
 
 class MapEnemyObject(GridMixin, TableObject):
@@ -625,6 +741,9 @@ class Cluster():
         exits = [me for me in MapEventObject.every if me.is_exit
                  and me.global_y == 0x0150 and me.global_x in (0x1d20, 0x1e78)]
         assert len(exits) == 2
+        #exits = [me for me in MapEventObject.every if me.is_exit
+        #         and me.global_y == 0x0450 and me.global_x in (0x1f20,)]
+        #assert len(exits) == 1
         exits = set(exits)
         chosen = [c for c in Cluster.generate_clusters()
                   if exits <= set(c.exits)]
@@ -822,6 +941,34 @@ def generate_cave():
             #me.connect_exit(me)
             me.connect_exit(Cluster.home.exits[0])
 
+    f = open(get_outfile(), "r+b")
+    f.seek(addresses.start_x)
+    write_multi(f, 0x1dcc, length=2)
+    f.seek(addresses.start_y)
+    write_multi(f, 0x0150, length=2)
+    f.close()
+
+    s = Script(0x5e70b)
+    lines = []
+    lines += [
+              (0x04, 0x68, 0x00),
+              (0x04, 0xC7, 0x00),
+              (0x04, 0xC8, 0x00),
+              (0x04, 0xA6, 0x01),
+              (0x04, 0x05, 0x02),
+              (0x05, 0x0B, 0x00),
+              (0x1F, 0x11, 0x02),
+              (0x1F, 0x11, 0x03),
+              (0x1F, 0x11, 0x04),
+              (0x1F, 0xB0),
+              (0x02,)]
+    s.lines = lines
+    print s.pretty_script
+    s.write_script()
+
+
+class EnemyObject(TableObject): pass
+
 
 if __name__ == "__main__":
     try:
@@ -839,10 +986,6 @@ if __name__ == "__main__":
         minmax = lambda x: (min(x), max(x))
 
         generate_cave()
-
-        for meo in MapEnemyObject.every:
-            meo.cave_rank
-
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)
         finish_interface()

@@ -3,9 +3,14 @@ ZoneSpriteObject    zone_event_table.txt        zone_sprite_pointers.txt
 MapEventObject      map_event_table.txt         map_event_pointers.txt
 MapSpriteObject     map_sprite_table.txt        map_sprite_pointers.txt
 EventObject         event_table.txt             event_pointers.txt
+TPTObject           tpt_table.txt               f8996       1581
 MapEnemyObject      map_enemy_table.txt         101880      20480
+EnemyObject         enemy_table.txt             159600      230
 MapPaletteObject    map_palette_table.txt       17a800      2560
 MapMusicObject      map_music_table.txt         1cd637      2560
+$start_y            1fe9b
+$start_x            1fe9e
+.patch              show_sprites_no_intro.txt
 
 # full map size: 320 rows of 256 1x1 blocks (256x320)
 # events: 40 rows of 32 8x8 blocks
