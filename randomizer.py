@@ -59,6 +59,16 @@ class Area:
     def enemy_cells(self):
         return [m for m in MapEnemyObject.every if m.index in self.cells]
 
+    @cached_property
+    def map_events(self):
+        return [me for me in MapEventObject.every
+                if me.enemy_cell in self.enemy_cells]
+
+    @cached_property
+    def map_sprites(self):
+        return [ms for ms in MapSpriteObject.every
+                if ms.enemy_cell in self.enemy_cells]
+
     @classproperty
     def all_areas(self):
         if hasattr(Area, "_all_areas"):
@@ -83,8 +93,33 @@ class Script:
             assert s.pointer != pointer
         self.pointer = pointer
         self.endpointer = endpointer
+        self.subpointers = set([])
         self.read_script()
         Script._all_scripts.append(self)
+
+    def __eq__(self, other):
+        return self.pointer == other.pointer
+
+    def __lt__(self, other):
+        assert type(self) is type(other)
+        return self.pointer < other.pointer
+
+    @classmethod
+    def get_by_pointer(self, pointer):
+        if not hasattr(self, "_cached_by_pointer"):
+            self._cached_by_pointer = {}
+        if pointer in self._cached_by_pointer:
+            return self._cached_by_pointer[pointer]
+
+        for s in self._all_scripts:
+            if s.pointer == pointer:
+                self._cached_by_pointer[pointer] = s
+                break
+        else:
+            s = Script(pointer)
+            self._cached_by_pointer[pointer] = s
+
+        return self.get_by_pointer(pointer)
 
     @classproperty
     def scriptdict(self):
@@ -103,7 +138,7 @@ class Script:
                 key = [int(v, 0x10) for v in instruction.split()[:1]]
             key = tuple(key)
 
-            if key == (0x09,):
+            if key in [(0x09,), (0x1f, 0xc0)]:
                 scriptdict[key] = (instruction, description, None)
                 continue
 
@@ -124,17 +159,39 @@ class Script:
             if key not in self.scriptdict:
                 f.seek(pointer)
                 key = tuple(map(ord, f.read(2)))
-            assert key in self.scriptdict
-            instruction, description, length = self.scriptdict[key]
+            if key in self.scriptdict:
+                instruction, description, length = self.scriptdict[key]
+            else:
+                key = (key[0],)
+                instruction, description, length = (
+                    ("%x" % key[0]).upper(), "ERROR", 1)
+                self.scriptdict[key] = (instruction, description, length)
+
+            if "Display Compressed" in description:
+                description = "ERROR"
+                self.scriptdict[key] = (instruction, description, length)
 
             if length is None:
-                f.seek(pointer+1)
+                f.seek(pointer+len(key))
                 numargs = ord(f.read(1))
-                length = 2 + (numargs*4)
-                import pdb; pdb.set_trace()
+                length = len(key) + 1 + (numargs*4)
+                # TODO: add subpointers
 
             f.seek(pointer)
             line = tuple(map(ord, f.read(length)))
+
+            if length is None or key in [
+                    (0x06,), (0x08,), (0x0a,),
+                    (0x1b, 0x02), (0x1b, 0x03), (0x1f, 0x63)]:
+                if length is not None:
+                    numargs = 1
+                subptrptr = pointer + len(line) - (4*numargs)
+                assert subptrptr > pointer
+                for i in xrange(numargs):
+                    f.seek(subptrptr + (i*4))
+                    subpointer = read_multi(f, length=4)
+                    self.subpointers.add(subpointer)
+
             self.lines.append(line)
             pointer += length
             if key == (0x02,) and (
@@ -166,17 +223,50 @@ class Script:
 
     @property
     def pretty_script(self):
+        return self.get_pretty_script_full()
+
+    def get_pretty_script(self):
         pretty_lines = []
         descriptions = []
+        erroneous = []
+        max_length = 0
         for line in self.lines:
             pretty_line, description = self.get_pretty_line_description(line)
+            if description == "ERROR":
+                erroneous.append(pretty_line.strip())
+                continue
+            if erroneous:
+                pretty_lines.append(" ".join(erroneous))
+                descriptions.append("ERROR")
+                erroneous = []
             pretty_lines.append(pretty_line)
             descriptions.append(description)
-        max_length = max([len(pl) for pl in pretty_lines])
+            if "ERROR" not in description:
+                max_length = max(max_length, len(pretty_line))
         s = ""
         for pretty_line, description in zip(pretty_lines, descriptions):
-            pretty_line = ("{0:%s}" % (max_length)).format(pretty_line)
-            s += "%s : %s\n" % (pretty_line, description)
+            if "ERROR" not in description:
+                pretty_line = ("{0:%s}" % (max_length)).format(pretty_line)
+                s += "%s : %s\n" % (pretty_line, description)
+            else:
+                s += pretty_line + "\n"
+        return s.strip()
+
+    def get_pretty_script_full(self, exclude_pointers=None):
+        if exclude_pointers is None:
+            exclude_pointers = []
+
+        s = ("$%x\n" % self.pointer).upper()
+        s += self.get_pretty_script()
+        subpointers = sorted([p for p in self.subpointers
+                              if p not in exclude_pointers])
+        exclude_pointers.extend(subpointers)
+        for p in subpointers:
+            if p & 0xFFC00000 != 0xC00000:
+                s += "\n\nINVALID SUB POINTER - %x" % p
+            p = p & 0x3FFFFF
+            s += "\n\n" + Script.get_by_pointer(p).get_pretty_script_full(
+                exclude_pointers=exclude_pointers)
         return s.strip()
 
     @property
@@ -284,6 +374,15 @@ class EventObject(GetByPointerMixin, TableObject):
         return s
 
     @property
+    def script(self):
+        if self.event_call == 0:
+            return None
+        if self.event_call & 0xFFC00000 != 0xC00000:
+            return None
+        pointer = self.event_call & 0x3FFFFF
+        return Script.get_by_pointer(pointer)
+
+    @property
     def y(self):
         return self.y_facing & 0x3FFF
 
@@ -296,7 +395,34 @@ class EventObject(GetByPointerMixin, TableObject):
         return self.y << 3
 
 
-class MapEventObject(GetByPointerMixin, TableObject):
+class ZonePositionMixin(object):
+    @cached_property
+    def zone(self):
+        if isinstance(self, MapEventObject):
+            candidates = [z for z in ZoneEventObject.every
+                          if self.pointer in z.obj_pointers]
+        if isinstance(self, MapSpriteObject):
+            candidates = [z for z in ZoneSpriteObject.every
+                          if self.pointer in z.obj_pointers]
+        assert len(candidates) == 1
+        return candidates[0]
+
+    @property
+    def x_bounds(self):
+        return (self.global_x, self.global_x)
+
+    @property
+    def y_bounds(self):
+        return (self.global_y, self.global_y)
+
+    @cached_property
+    def enemy_cell(self):
+        me = MapEnemyObject.get_by_pixel(self.global_x, self.global_y)
+        assert self.zone.contains(me)
+        return me
+
+
+class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     def __repr__(self):
         return "{4:0>4} {0:0>4} {1:0>4} {2:0>2} {3:0>4}".format(
             *["%x" % v for v in [self.global_x, self.global_y, self.event_type,
@@ -323,6 +449,12 @@ class MapEventObject(GetByPointerMixin, TableObject):
     def event(self):
         return EventObject.get_by_pointer(
             0xF0000 | self.old_data["event_index"])
+
+    @property
+    def script(self):
+        if self.event:
+            return self.event.script
+        return None
 
     @cached_property
     def destination_zone(self):
@@ -402,13 +534,6 @@ class MapEventObject(GetByPointerMixin, TableObject):
             return cluster.rank
         return None
 
-    @cached_property
-    def zone(self):
-        candidates = [z for z in ZoneEventObject.every
-                      if self.pointer in z.obj_pointers]
-        assert len(candidates) == 1
-        return candidates[0]
-
     @property
     def global_x(self):
         x1, x2 = self.zone.x_bounds
@@ -423,22 +548,8 @@ class MapEventObject(GetByPointerMixin, TableObject):
         assert y1 <= y <= y2
         return y
 
-    @property
-    def x_bounds(self):
-        return (self.global_x, self.global_x)
 
-    @property
-    def y_bounds(self):
-        return (self.global_y, self.global_y)
-
-    @cached_property
-    def enemy_cell(self):
-        me = MapEnemyObject.get_by_pixel(self.global_x, self.global_y)
-        assert self.zone.contains(me)
-        return me
-
-
-class MapSpriteObject(GetByPointerMixin, TableObject):
+class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     def __repr__(self):
         return "{0:0>2} {1:0>2} {3:0>5} {2:0>4}".format(
             *["%x" % v for v in [self.x, self.y, self.tpt_number,
@@ -447,6 +558,28 @@ class MapSpriteObject(GetByPointerMixin, TableObject):
     @property
     def tpt(self):
         return TPTObject.get(self.tpt_number)
+
+    @property
+    def script(self):
+        pointer = self.tpt.address
+        if pointer == 0:
+            return None
+        assert pointer & 0xFFC00000 == 0xC00000
+        return Script.get_by_pointer(pointer & 0x3FFFFF)
+
+    @property
+    def global_x(self):
+        x1, x2 = self.zone.x_bounds
+        x = x1 + self.x
+        assert x1 <= x <= x2
+        return x
+
+    @property
+    def global_y(self):
+        y1, y2 = self.zone.y_bounds
+        y = y1 + self.y
+        assert y1 <= y <= y2
+        return y
 
 
 class TPTObject(TableObject): pass
@@ -464,6 +597,14 @@ class MapEnemyObject(GridMixin, TableObject):
         if hasattr(self, "_area"):
             return self._area
         return None
+
+    @cached_property
+    def map_events(self):
+        return [me for me in MapEventObject.every if me.enemy_cell is self]
+
+    @cached_property
+    def map_sprites(self):
+        return [ms for ms in MapSpriteObject.every if ms.enemy_cell is self]
 
     @property
     def canonical_exit(self):
@@ -985,7 +1126,90 @@ if __name__ == "__main__":
         numify = lambda x: "{0: >3}".format(x)
         minmax = lambda x: (min(x), max(x))
 
-        generate_cave()
+        #generate_cave()
+
+        '''
+        for me in MapEventObject.every:
+            if me.event.event_call == 0:
+                continue
+            print hex(me.event.event_call)
+            script = me.event.script
+            print script.pretty_script
+            print
+            break
+
+        for mso in MapSpriteObject.every:
+            if mso.tpt.address == 0:
+                continue
+            print hex(mso.tpt.address)
+            script = mso.script
+            print script.pretty_script
+            print
+            import pdb; pdb.set_trace()
+        '''
+
+        for a in Area.all_areas:
+            #print "=" * 79
+            #print a.label
+            for mso in a.map_sprites:
+                if mso.tpt.address == 0:
+                    continue
+                script = mso.script
+                script.pretty_script
+                '''
+                if "Display Shop Menu" in script.pretty_script:
+                    print "-" * 79
+                    print "SCRIPT %x" % (mso.tpt.address & 0x3FFFFF)
+                    print script.get_pretty_script()
+                    import pdb; pdb.set_trace()
+                '''
+            #print "=" * 79
+            #print
+
+        for s in sorted(Script._all_scripts):
+            pretty_script = s.get_pretty_script()
+            if "08 b1 df c5 00" in pretty_script:
+                print pretty_script
+                print
+            elif "08 2f e0 c5 00" in pretty_script:
+                print pretty_script
+                print
+        exit(0)
+
+        print
+        print len(Script._all_scripts)
+        print len([s for s in sorted(Script._all_scripts) if "Display Shop Menu" in s.pretty_script])
+        print len(Script._all_scripts)
+        print
+
+        counter = 0
+        for s in sorted(Script._all_scripts):
+            if "08 b1 df c5 00" in s.get_pretty_script():
+                counter += 1
+                print s.get_pretty_script()
+                print
+
+        print counter
+        print
+
+        '''
+        for a in Area.all_areas:
+            print "=" * 79
+            print a.label
+            pointers = set([])
+            for mso in a.map_events:
+                if not (mso.event and mso.event.event_call != 0 and mso.script):
+                    continue
+                pointers.add(mso.script.pointer)
+            for p in sorted(pointers):
+                print "-" * 79
+                print "SCRIPT %x" % p
+                script = Script.get_by_pointer(p)
+                print script.pretty_script
+            print "=" * 79
+            print
+        '''
+
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)
         finish_interface()
