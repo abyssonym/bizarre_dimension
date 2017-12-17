@@ -1349,6 +1349,14 @@ class EnemyPlaceObject(TableObject):
                     import pdb; pdb.set_trace()
         f.close()
 
+    @property
+    def rank(self):
+        try:
+            return max([beo.rank for i in self.battle_entries.keys()
+                        for beo in self.battle_entries[i]])
+        except ValueError:
+            return -1
+
 
 class BattleEntryObject(TableObject):
     @classproperty
@@ -1381,6 +1389,10 @@ class BattleEntryObject(TableObject):
         self.enemies = enemies
         self.activities = activities
         f.close()
+
+    @property
+    def rank(self):
+        return max([e.rank for e in self.enemies])
 
 
 class ItemObject(TableObject):
@@ -1477,6 +1489,19 @@ class EnemyObject(TableObject):
     def name(self):
         return bytes_to_text(self.name_text)
 
+    @property
+    def rank(self):
+        if hasattr(self, "_rank"):
+            return self._rank
+        by_hp = sorted(EnemyObject.every, key=lambda e: (
+            e.old_data["hp"], e.old_data["xp"], e.index))
+        by_xp = sorted(EnemyObject.every, key=lambda e: (
+            e.old_data["xp"], e.old_data["hp"], e.index))
+        for e in EnemyObject.every:
+            index = max(by_hp.index(e), by_xp.index(e))
+            e._rank = index
+        return self.rank
+
 
 if __name__ == "__main__":
     try:
@@ -1493,13 +1518,18 @@ if __name__ == "__main__":
         numify = lambda x: "{0: >3}".format(x)
         minmax = lambda x: (min(x), max(x))
 
-        for beo in BattleEntryObject.every:
-            print beo
+        for e in EnemyObject.ranked:
+            print e.rank, e
+
+        for beo in BattleEntryObject.ranked:
+            print beo.rank, beo
             print
 
-        for epo in EnemyPlaceObject.every:
-            print epo
+        for epo in EnemyPlaceObject.ranked:
+            print epo.rank, epo
             print
+
+        exit(0)
 
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)
