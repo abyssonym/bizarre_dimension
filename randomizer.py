@@ -632,8 +632,9 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     @property
     def cave_rank(self):
         cluster = Cluster.get_by_exit(self)
-        if cluster is not None:
-            return cluster.rank
+        if cluster is not None and cluster.rank is not None:
+            max_rank = max(c.rank for c in Cluster.generate_clusters())
+            return cluster.rank / max_rank
         return None
 
     @property
@@ -652,10 +653,17 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
 
 
 class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
+    flag = 'g'
+    flag_description = "gift box contents"
+
     def __repr__(self):
         return "{0:0>2} {1:0>2} {3:0>5} {2:0>4}".format(
             *["%x" % v for v in [self.x, self.y, self.tpt_number,
                                  self.pointer]])
+
+    @classproperty
+    def after_order(self):
+        return [AncientCave]
 
     @property
     def tpt(self):
@@ -713,6 +721,43 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         y = y1 + self.y
         assert y1 <= y <= y2
         return y
+
+    @property
+    def cave_rank(self):
+        return self.enemy_cell.cave_rank
+
+    def mutate(self):
+        if not self.is_chest:
+            return
+
+        if 'a' not in get_flags():
+            if self.is_money:
+                return
+            i = self.chest_contents
+            i = i.get_similar()
+            assert self.tpt.argument == self.tpt.old_data["argument"]
+            self.tpt.argument = i.index
+            return
+
+        # Ancient Cave
+        cave_rank = self.cave_rank
+        if cave_rank is None:
+            return
+
+        if random.random() < (cave_rank ** 2):
+            candidates = [i for i in ItemObject.ranked
+                          if i.rank >= 0 and not i.buyable]
+        else:
+            candidates = [i for i in ItemObject.ranked if i.rank >= 0]
+
+        if (random.random()**4) > cave_rank:
+            candidates = [c for c in candidates if c.is_equipment]
+            cave_rank = cave_rank ** 0.75
+
+        index = int(round(cave_rank * (len(candidates)-1)))
+        chosen = candidates[index]
+        new_item = chosen.get_similar(candidates=candidates)
+        self.tpt.argument = new_item.index
 
 
 class TPTObject(TableObject):
@@ -1271,6 +1316,10 @@ class ItemObject(TableObject):
         return False
 
     @property
+    def is_equipment(self):
+        return self.item_type in [0x10, 0x11, 0x14, 0x18, 0x1c]
+
+    @property
     def sellable(self):
         return self.old_data["price"] > 0
 
@@ -1284,8 +1333,11 @@ class ItemObject(TableObject):
         if self.key_item:
             return -1
 
-        if not self.buyable:
+        if not self.buyable and not self.sellable:
             return 1000000
+
+        if not self.buyable:
+            return 100000 + self.old_data["price"]
 
         return self.old_data["price"]
 
