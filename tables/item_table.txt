@@ -1,4 +1,4 @@
-name_text,25
+name_text,25,str
 item_type,1
 price,2
 equipable,bit:ness paula jeff poo transform nogive unk_e one_use

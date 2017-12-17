@@ -1,3 +1,4 @@
+AncientCave         empty.txt                   0           1
 ZoneEventObject     zone_event_table.txt        zone_event_pointers.txt
 ZoneSpriteObject    zone_event_table.txt        zone_sprite_pointers.txt
 MapEventObject      map_event_table.txt         map_event_pointers.txt

@@ -16,6 +16,33 @@ from collections import Counter
 VERSION = 0
 ALL_OBJECTS = None
 DEBUG_MODE = False
+TEXT_MAPPING = {}
+
+
+text_map_filename = path.join(tblpath, "text_mapping.txt")
+for line in open(text_map_filename):
+    line = line.strip("\n")
+    code, text = line.split("=", 1)
+    TEXT_MAPPING[int(code, 0x10)] = text
+TEXT_MAPPING[0] = None
+
+
+def bytes_to_text(s):
+    result = ""
+    while s:
+        key = s[:2]
+        value = ord(key[1]) | (ord(key[0]) << 8)
+        if value not in TEXT_MAPPING:
+            key = s[0]
+            value = ord(key[0])
+        if value not in TEXT_MAPPING:
+            raise Exception("Value %x not valid text." % value)
+        text = TEXT_MAPPING[value]
+        if text is None:
+            break
+        result += text
+        s = s[len(key):]
+    return result
 
 
 def load_areas(area_filename=None):
@@ -121,6 +148,53 @@ class Script:
 
         return self.get_by_pointer(pointer)
 
+    @property
+    def subscripts(self):
+        subscripts = []
+        for p in sorted(self.subpointers):
+            if p & 0xFFC00000 != 0xC00000:
+                continue
+            p = p & 0x3FFFFF
+            s = Script.get_by_pointer(p)
+            subscripts.append(s)
+        return subscripts
+
+    @property
+    def has_shop_call(self):
+        return ((0x08, 0xb1, 0xdf, 0xc5, 0x00) in self.lines or
+                (0x08, 0x2f, 0xe0, 0xc5, 0x00) in self.lines)
+
+    @property
+    def shop_flags(self):
+        if not self.properties["shop"]:
+            return None
+
+        for s in self.subscripts:
+            if s.has_shop_call:
+                break
+        else:
+            for s0 in self.subscripts:
+                for s in s0.subscripts:
+                    if s.has_shop_call:
+                        break
+                else:
+                    continue
+                break
+            else:
+                return None
+
+        on_flags = set([])
+        off_flags = set([])
+        for line in s.lines:
+            if len(line) == 3 and line[0] == 4:
+                on_flags.add((line[2] << 8) | line[1])
+            if len(line) == 3 and line[0] == 5:
+                off_flags.add((line[2] << 8) | line[1])
+        flags = on_flags & off_flags
+        if 0x290 in flags:
+            flags.remove(0x290)
+        return flags
+
     @classproperty
     def scriptdict(self):
         if hasattr(Script, "_scriptdict"):
@@ -223,7 +297,14 @@ class Script:
 
     @property
     def pretty_script(self):
-        return self.get_pretty_script_full()
+        s = self.get_pretty_script_full()
+        return s
+
+    @property
+    def properties(self):
+        if not hasattr(self, "_properties"):
+            self.pretty_script
+        return self._properties
 
     def get_pretty_script(self):
         pretty_lines = []
@@ -260,6 +341,7 @@ class Script:
         s += self.get_pretty_script()
         subpointers = sorted([p for p in self.subpointers
                               if p not in exclude_pointers])
+        excluded = (len(subpointers) < len(self.subpointers))
         exclude_pointers.extend(subpointers)
         for p in subpointers:
             if p & 0xFFC00000 != 0xC00000:
@@ -267,6 +349,16 @@ class Script:
             p = p & 0x3FFFFF
             s += "\n\n" + Script.get_by_pointer(p).get_pretty_script_full(
                 exclude_pointers=exclude_pointers)
+
+        if not (excluded or hasattr(self, "_properties")):
+            self._properties = {}
+            self._properties["shop"] = "Display Shop Menu" in s
+            self._properties["party"] = ("Add Party Member" in s or
+                                         "Remove Party Member" in s)
+            self._properties["battle"] = "Trigger Battle Scene" in s
+            self._properties["flag"] = ("Toggle On Event Flag" in s or
+                                        "Toggle Off Event Flag" in s)
+
         return s.strip()
 
     @property
@@ -364,6 +456,16 @@ class GetByPointerMixin(object):
             return None
         assert len(objs) == 1
         return objs[0]
+
+
+class AncientCave(TableObject):
+    flag = 'a'
+    flag_description = "with ancient cave mode"
+
+    @classmethod
+    def full_randomize(cls):
+        generate_cave()
+        super(AncientCave, cls).full_randomize()
 
 
 class EventObject(GetByPointerMixin, TableObject):
@@ -561,11 +663,42 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
 
     @property
     def script(self):
-        pointer = self.tpt.address
-        if pointer == 0:
+        return self.tpt.script
+
+    @property
+    def is_chest(self):
+        return self.tpt.is_chest
+
+    @property
+    def is_money(self):
+        return self.is_chest and ((self.tpt.argument & 0xFF00) >= 0x100)
+
+    @property
+    def money_value(self):
+        if not self.is_money:
             return None
-        assert pointer & 0xFFC00000 == 0xC00000
-        return Script.get_by_pointer(pointer & 0x3FFFFF)
+        return self.tpt.argument - 0x100
+
+    @property
+    def chest_contents(self):
+        if not self.is_chest:
+            return None
+        if self.is_money:
+            return "MONEY: %s" % self.money_value
+        return ItemObject.get(self.tpt.argument)
+
+    @property
+    def is_shop(self):
+        return self.tpt.is_shop
+
+    @property
+    def shop_flag(self):
+        if not self.is_shop:
+            return None
+        shop_flags = self.script.shop_flags
+        if shop_flags is None or len(shop_flags) != 1:
+            return None
+        return sorted(shop_flags)[0]
 
     @property
     def global_x(self):
@@ -582,7 +715,24 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         return y
 
 
-class TPTObject(TableObject): pass
+class TPTObject(TableObject):
+    @property
+    def is_chest(self):
+        return self.tpt_type == 2
+
+    @property
+    def is_shop(self):
+        if not self.script:
+            return False
+        return self.script.properties["shop"]
+
+    @property
+    def script(self):
+        pointer = self.address
+        if pointer == 0:
+            return None
+        assert pointer & 0xFFC00000 == 0xC00000
+        return Script.get_by_pointer(pointer & 0x3FFFFF)
 
 
 class MapEnemyObject(GridMixin, TableObject):
@@ -1108,6 +1258,88 @@ def generate_cave():
     s.write_script()
 
 
+class ItemObject(TableObject):
+    @property
+    def name(self):
+        return bytes_to_text(self.name_text)
+
+    @cached_property
+    def buyable(self):
+        for s in ShopObject.every:
+            if self.index in s.old_data["item_ids"]:
+                return True
+        return False
+
+    @property
+    def sellable(self):
+        return self.old_data["price"] > 0
+
+    @property
+    def key_item(self):
+        return (self.item_type in [0, 0x34, 0x35, 0x38, 0x3a, 0x3b]
+                and not (self.buyable or self.sellable))
+
+    @property
+    def rank(self):
+        if self.key_item:
+            return -1
+
+        if not self.buyable:
+            return 1000000
+
+        return self.old_data["price"]
+
+
+class ShopObject(TableObject):
+    flag = 's'
+    flag_description = "shops"
+
+    @property
+    def items(self):
+        return [ItemObject.get(i) for i in self.item_ids if i]
+
+    @property
+    def sister_shops(self):
+        sisters = []
+        for i in self.item_ids:
+            if not i:
+                continue
+            sisters.extend([s for s in ShopObject.every if i in s.item_ids])
+        return sorted(sisters)
+
+    @property
+    def sister_wares(self):
+        wares = []
+        for s in self.sister_shops:
+            wares.extend([i for i in s.item_ids if i])
+        return wares
+
+    @cached_property
+    def rank(self):
+        prices = [ItemObject.get(i).old_data["price"]
+                  for i in self.old_data["item_ids"] if i]
+        return max(prices)
+
+    def __repr__(self):
+        s = "SHOP %x" % self.index
+        for i in self.items:
+            s += "\n{0:25} {1: >5}".format(i.name, i.price)
+        return s.strip()
+
+    def mutate(self):
+        wares = sorted(self.sister_wares)
+        new_item_ids = []
+        while len(new_item_ids) < 7 and len(wares) > 0:
+            chosen = random.choice(wares)
+            new_item_ids.append(chosen)
+            wares = [w for w in wares if w != chosen]
+        new_item_ids = sorted(new_item_ids)
+        assert 0 not in new_item_ids
+        while len(new_item_ids) < 7:
+            new_item_ids.append(0)
+        self.item_ids = new_item_ids
+
+
 class EnemyObject(TableObject): pass
 
 
@@ -1125,90 +1357,6 @@ if __name__ == "__main__":
         hexify = lambda x: "{0:0>2}".format("%x" % x)
         numify = lambda x: "{0: >3}".format(x)
         minmax = lambda x: (min(x), max(x))
-
-        #generate_cave()
-
-        '''
-        for me in MapEventObject.every:
-            if me.event.event_call == 0:
-                continue
-            print hex(me.event.event_call)
-            script = me.event.script
-            print script.pretty_script
-            print
-            break
-
-        for mso in MapSpriteObject.every:
-            if mso.tpt.address == 0:
-                continue
-            print hex(mso.tpt.address)
-            script = mso.script
-            print script.pretty_script
-            print
-            import pdb; pdb.set_trace()
-        '''
-
-        for a in Area.all_areas:
-            #print "=" * 79
-            #print a.label
-            for mso in a.map_sprites:
-                if mso.tpt.address == 0:
-                    continue
-                script = mso.script
-                script.pretty_script
-                '''
-                if "Display Shop Menu" in script.pretty_script:
-                    print "-" * 79
-                    print "SCRIPT %x" % (mso.tpt.address & 0x3FFFFF)
-                    print script.get_pretty_script()
-                    import pdb; pdb.set_trace()
-                '''
-            #print "=" * 79
-            #print
-
-        for s in sorted(Script._all_scripts):
-            pretty_script = s.get_pretty_script()
-            if "08 b1 df c5 00" in pretty_script:
-                print pretty_script
-                print
-            elif "08 2f e0 c5 00" in pretty_script:
-                print pretty_script
-                print
-        exit(0)
-
-        print
-        print len(Script._all_scripts)
-        print len([s for s in sorted(Script._all_scripts) if "Display Shop Menu" in s.pretty_script])
-        print len(Script._all_scripts)
-        print
-
-        counter = 0
-        for s in sorted(Script._all_scripts):
-            if "08 b1 df c5 00" in s.get_pretty_script():
-                counter += 1
-                print s.get_pretty_script()
-                print
-
-        print counter
-        print
-
-        '''
-        for a in Area.all_areas:
-            print "=" * 79
-            print a.label
-            pointers = set([])
-            for mso in a.map_events:
-                if not (mso.event and mso.event.event_call != 0 and mso.script):
-                    continue
-                pointers.add(mso.script.pointer)
-            for p in sorted(pointers):
-                print "-" * 79
-                print "SCRIPT %x" % p
-                script = Script.get_by_pointer(p)
-                print script.pretty_script
-            print "=" * 79
-            print
-        '''
 
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)
