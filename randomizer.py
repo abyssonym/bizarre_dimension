@@ -104,6 +104,7 @@ class Area:
         if hasattr(Area, "_all_areas"):
             return Area._all_areas
 
+        print "Labeling areas..."
         areas = load_areas()
         all_areas = []
         for key in sorted(areas):
@@ -784,17 +785,53 @@ class TPTObject(TableObject):
 
 
 class MapEnemyObject(GridMixin, TableObject):
+    flag = 'a'
+
     rows = 160
     columns = 128
 
     def set_area(self, area):
         self._area = area
 
+    @classproperty
+    def after_order(self):
+        return [AncientCave]
+
     @property
     def area(self):
         if hasattr(self, "_area"):
             return self._area
         return None
+
+    @property
+    def neighbors(self):
+        neighbors = []
+        for y in xrange(-1, 2):
+            for x in xrange(-1, 2):
+                index = self.index + x + (y * self.columns)
+                try:
+                    neighbors.append(MapEnemyObject.get(index))
+                except KeyError:
+                    continue
+
+        if not hasattr(Area, "_all_areas"):
+            Area.all_areas
+
+        for n in list(neighbors):
+            if abs(n.grid_x - self.grid_x) > 1:
+                neighbors.remove(n)
+                continue
+            if n.area and self.area and n.area.label != self.area.label:
+                neighbors.remove(n)
+
+        return neighbors
+
+    @cached_property
+    def enemy_adjacent(self):
+        if self.old_data["enemy_place_index"] > 0:
+            return True
+        return any([n.old_data["enemy_place_index"] > 0
+                    for n in self.neighbors])
 
     @cached_property
     def map_events(self):
@@ -847,6 +884,10 @@ class MapEnemyObject(GridMixin, TableObject):
             return self.cave_rank
         return None
 
+    @property
+    def enemy_group(self):
+        return EnemyPlaceObject.get(self.enemy_place_index)
+
     @cached_property
     def palette(self):
         return MapPaletteObject.get_by_grid(
@@ -856,6 +897,27 @@ class MapEnemyObject(GridMixin, TableObject):
     def music(self):
         return MapMusicObject.get_by_grid(
             self.grid_x/4, self.grid_y/2).music_index
+
+    def randomize(self):
+        assert 'a' in get_flags()
+
+        # ANCIENT CAVE
+        if self.cave_rank is None:
+            return
+
+        if not self.enemy_adjacent and random.random() > get_random_degree():
+            return
+
+        if random.random() > 0.1:
+            self.enemy_place_index = 0
+            return
+
+        max_index = len(EnemyPlaceObject.every)-1
+        index = int(round(max_index * (self.cave_rank**2)))
+
+        chosen = EnemyPlaceObject.ranked[index]
+        chosen = chosen.get_similar()
+        self.enemy_place_index = chosen.index
 
 
 class MapPaletteObject(GridMixin, TableObject):
@@ -1337,19 +1399,15 @@ class EnemyPlaceObject(TableObject):
                 continue
             while True:
                 prob = ord(f.read(1))
-                if prob < 0 or prob >= 9:
-                    import pdb; pdb.set_trace()
                 battle_entry = read_multi(f, length=2)
                 self.odds[i].append(prob)
                 self.battle_entries[i].append(
                         BattleEntryObject.get(battle_entry))
                 if sum(self.odds[i]) == 8:
                     break
-                if sum(self.odds[i]) > 8:
-                    import pdb; pdb.set_trace()
         f.close()
 
-    @property
+    @cached_property
     def rank(self):
         try:
             return max([beo.rank for i in self.battle_entries.keys()
@@ -1390,7 +1448,7 @@ class BattleEntryObject(TableObject):
         self.activities = activities
         f.close()
 
-    @property
+    @cached_property
     def rank(self):
         return max([e.rank for e in self.enemies])
 
@@ -1517,19 +1575,6 @@ if __name__ == "__main__":
         hexify = lambda x: "{0:0>2}".format("%x" % x)
         numify = lambda x: "{0: >3}".format(x)
         minmax = lambda x: (min(x), max(x))
-
-        for e in EnemyObject.ranked:
-            print e.rank, e
-
-        for beo in BattleEntryObject.ranked:
-            print beo.rank, beo
-            print
-
-        for epo in EnemyPlaceObject.ranked:
-            print epo.rank, epo
-            print
-
-        exit(0)
 
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)

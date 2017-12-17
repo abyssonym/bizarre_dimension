@@ -1,1 +1,1 @@
-enemy_group,2
+enemy_place_index,2
