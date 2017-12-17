@@ -30,8 +30,11 @@ TEXT_MAPPING[0] = None
 def bytes_to_text(s):
     result = ""
     while s:
-        key = s[:2]
-        value = ord(key[1]) | (ord(key[0]) << 8)
+        if len(s) >= 2:
+            key = s[:2]
+            value = ord(key[1]) | (ord(key[0]) << 8)
+        else:
+            value = None
         if value not in TEXT_MAPPING:
             key = s[0]
             value = ord(key[0])
@@ -1303,6 +1306,83 @@ def generate_cave():
     s.write_script()
 
 
+class EnemyPlaceObject(TableObject):
+    @classproperty
+    def after_order(self):
+        return [BattleEntryObject]
+
+    def __repr__(self):
+        s = ""
+        for i, rate in enumerate(self.sub_group_rates):
+            if rate == 0:
+                continue
+            s += "\nENEMY PLACEMENT %x-%s %s/100" % (self.index, "ab"[i], rate)
+            for prob, beo in zip(self.odds[i], self.battle_entries[i]):
+                s += "\n  %s %s" % (prob, str(beo).replace("\n", "\n    "))
+        return s.strip()
+
+    def read_data(self, filename, pointer=None):
+        super(EnemyPlaceObject, self).read_data(filename, pointer)
+        f = open(filename, "r+b")
+        pointer = self.placement_group_pointer
+        assert (pointer & 0xC00000) == 0xC00000
+        pointer = pointer & 0x3FFFFF
+        f.seek(pointer)
+        self.event_flag = read_multi(f, length=2)
+        self.sub_group_rates = map(ord, f.read(2))
+        self.odds = defaultdict(list)
+        self.battle_entries = defaultdict(list)
+        for i, rate in enumerate(self.sub_group_rates):
+            if rate == 0:
+                continue
+            while True:
+                prob = ord(f.read(1))
+                if prob < 0 or prob >= 9:
+                    import pdb; pdb.set_trace()
+                battle_entry = read_multi(f, length=2)
+                self.odds[i].append(prob)
+                self.battle_entries[i].append(
+                        BattleEntryObject.get(battle_entry))
+                if sum(self.odds[i]) == 8:
+                    break
+                if sum(self.odds[i]) > 8:
+                    import pdb; pdb.set_trace()
+        f.close()
+
+
+class BattleEntryObject(TableObject):
+    @classproperty
+    def after_order(self):
+        return [EnemyObject]
+
+    def __repr__(self):
+        s = "BATTLE ENTRY %x" % self.index
+        for a, e in zip(self.activities, self.enemies):
+            s += "\n{0:0>2} {1}".format("%x" % a, e)
+        return s.strip()
+
+    def read_data(self, filename, pointer=None):
+        super(BattleEntryObject, self).read_data(filename, pointer)
+        f = open(filename, "r+b")
+        pointer = self.enemies_pointer
+        assert (pointer & 0xC00000) == 0xC00000
+        pointer = pointer & 0x3FFFFF
+        f.seek(pointer)
+        activities = []
+        enemies = []
+        while True:
+            enemy_active = ord(f.read(1))
+            if enemy_active == 0xFF:
+                break
+            enemy_id = read_multi(f, length=2)
+            e = EnemyObject.get(enemy_id)
+            enemies.append(e)
+            activities.append(enemy_active)
+        self.enemies = enemies
+        self.activities = activities
+        f.close()
+
+
 class ItemObject(TableObject):
     @property
     def name(self):
@@ -1392,7 +1472,10 @@ class ShopObject(TableObject):
         self.item_ids = new_item_ids
 
 
-class EnemyObject(TableObject): pass
+class EnemyObject(TableObject):
+    @property
+    def name(self):
+        return bytes_to_text(self.name_text)
 
 
 if __name__ == "__main__":
@@ -1409,6 +1492,14 @@ if __name__ == "__main__":
         hexify = lambda x: "{0:0>2}".format("%x" % x)
         numify = lambda x: "{0: >3}".format(x)
         minmax = lambda x: (min(x), max(x))
+
+        for beo in BattleEntryObject.every:
+            print beo
+            print
+
+        for epo in EnemyPlaceObject.every:
+            print epo
+            print
 
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)
