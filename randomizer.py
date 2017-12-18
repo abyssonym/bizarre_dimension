@@ -1543,6 +1543,49 @@ class ShopObject(TableObject):
 
 
 class EnemyObject(TableObject):
+    flag = 'm'
+    flag_description = "enemy stats"
+
+    mutate_attributes = {
+        "hp": None,
+        "pp": None,
+        "xp": None,
+        "money": None,
+        "level": None,
+        "offense": None,
+        "defense": None,
+        "speed": None,
+        "guts": None,
+        "iq": None,
+        "miss_rate": None,
+        "drop_frequency": None,
+        "drop_item_index": ItemObject,
+        "mirror_success_rate": None,
+        "max_call": None,
+        "weakness_fire": None,
+        "weakness_freeze": None,
+        "weakness_flash": None,
+        "weakness_paralysis": None,
+        "weakness_hypnosis": None,
+    }
+    intershuffle_attributes = [
+        "hp", "pp", "xp", "money", "level",
+        "offense", "defense", "speed", "guts", "iq", "miss_rate",
+        ("drop_item_index", "drop_frequency"), "status",
+        "mirror_success_rate",
+        ]
+    randomize_attributes = [
+        "order",
+        ]
+
+    @property
+    def is_boss(self):
+        return self.boss_flag or self.death_sound
+
+    @property
+    def intershuffle_valid(self):
+        return not self.is_boss
+
     @property
     def name(self):
         return bytes_to_text(self.name_text)
@@ -1560,6 +1603,15 @@ class EnemyObject(TableObject):
             e._rank = index
         return self.rank
 
+    def cleanup(self):
+        if self.is_boss:
+            for attr in [
+                    "hp", "pp", "level", "offense", "defense", "speed", "guts",
+                    "iq", "weakness_fire", "weakness_freeze", "weakness_flash",
+                    "weakness_paralysis", "weakness_hypnosis"]:
+                setattr(self, attr,
+                        max(getattr(self, attr), self.old_data[attr]))
+
 
 if __name__ == "__main__":
     try:
@@ -1572,6 +1624,7 @@ if __name__ == "__main__":
                        and g not in [TableObject]]
 
         run_interface(ALL_OBJECTS, snes=True)
+
         hexify = lambda x: "{0:0>2}".format("%x" % x)
         numify = lambda x: "{0: >3}".format(x)
         minmax = lambda x: (min(x), max(x))
