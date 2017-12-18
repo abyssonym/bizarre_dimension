@@ -1613,6 +1613,23 @@ class EnemyObject(TableObject):
                         max(getattr(self, attr), self.old_data[attr]))
 
 
+class StatGrowthObject(TableObject):
+    flag = 'c'
+    flag_description = "character stats"
+
+    randomize_attributes = [
+        "offense", "defense", "speed", "guts", "vitality", "iq", "luck"]
+    mutate_attributes = {
+        "offense": None,
+        "defense": None,
+        "speed": None,
+        "guts": None,
+        "vitality": None,
+        "iq": None,
+        "luck": None,
+        }
+
+
 class InitialStatsObject(TableObject):
     def __repr__(self):
         s = "%x %s %s %s %x" % (self.index, self.level, self.xp, self.money,
