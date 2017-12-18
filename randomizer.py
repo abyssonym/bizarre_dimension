@@ -1613,6 +1613,28 @@ class EnemyObject(TableObject):
                         max(getattr(self, attr), self.old_data[attr]))
 
 
+class InitialStatsObject(TableObject):
+    def __repr__(self):
+        s = "%x %s %s %s %x" % (self.index, self.level, self.xp, self.money,
+                                self.unknown)
+        for i in self.items:
+            s += "\n%s" % i
+        return s.strip()
+
+    @property
+    def items(self):
+        items = []
+        for i in self.item_indexes:
+            if i:
+                items.append(ItemObject.get(i))
+        return items
+
+    def cleanup(self):
+        if 'a' in get_flags():
+            self.level = 1
+            self.xp = 0
+
+
 if __name__ == "__main__":
     try:
         print ("You are using the Earthbound Ancient Cave "

@@ -11,6 +11,7 @@ BattleEntryObject   battle_entry_table.txt      10c60d      484
 ItemObject          item_table.txt              155000      254
 ShopObject          shop_table.txt              1576b9      65
 EnemyObject         enemy_table.txt             159589      231
+InitialStatsObject  initial_stats_table.txt     15f5f5      4
 MapPaletteObject    map_palette_table.txt       17a800      2560
 MapMusicObject      map_music_table.txt         1cd637      2560
 $start_y            1fe9b
