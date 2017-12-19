@@ -1577,6 +1577,9 @@ class EnemyObject(TableObject):
     randomize_attributes = [
         "order",
         ]
+    shuffle_attributes = [
+        ("action1", "action2", "action3", "action4"),
+        ]
 
     @property
     def is_boss(self):

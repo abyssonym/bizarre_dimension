@@ -15,8 +15,10 @@ d_address,4
 battle_palette,1
 level,1
 music,1
-offense,2
-defense,2
+offense,1
+unk_offense,1
+defense,1
+unk_defense,1
 speed,1
 guts,1
 iq,1
