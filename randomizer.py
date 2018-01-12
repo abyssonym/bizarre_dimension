@@ -433,11 +433,17 @@ class GridMixin(object):
 
     @classmethod
     def get_by_grid(cls, x, y):
-        objs = [o for o in cls.every if o.grid_x == x and o.grid_y == y]
-        if len(objs) < 1:
-            return None
-        assert len(objs) == 1
-        return objs[0]
+        if not hasattr(cls, "_by_grid_cache"):
+            cls._by_grid_cache = {}
+
+            for o in cls.every:
+                assert (o.grid_x, o.grid_y) not in cls._by_grid_cache
+                cls._by_grid_cache[o.grid_x, o.grid_y] = o
+
+        if (x, y) in cls._by_grid_cache:
+            return cls._by_grid_cache[x, y]
+
+        return None
 
     @classmethod
     def get_by_cell(cls, x, y):
@@ -569,6 +575,22 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
 
     @cached_property
     def friend(self):
+        if not hasattr(MapEventObject, "_prelearned_friends"):
+            MapEventObject._prelearned_friends = {}
+            filename = path.join(tblpath, "meo_friends.txt")
+            f = open(filename)
+            for line in f:
+                a, b = line.strip().split()
+                a = MapEventObject.get(int(a, 0x10))
+                if b == "None":
+                    b = None
+                else:
+                    b = MapEventObject.get(int(b, 0x10))
+                self._prelearned_friends[a] = b
+
+        return self._prelearned_friends[self]
+
+        '''
         candidates = []
         for me in MapEventObject.all_exits:
             mezone = me.destination_zone
@@ -586,6 +608,7 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         if chosen is self:
             return None
         return chosen
+        '''
 
     def get_distance(self, x, y):
         return abs(self.global_x - x) + abs(self.global_y - y)
@@ -843,6 +866,22 @@ class MapEnemyObject(GridMixin, TableObject):
 
     @property
     def canonical_exit(self):
+        if not hasattr(MapEnemyObject, "_prelearned_canonical_exits"):
+            MapEnemyObject._prelearned_canonical_exits = {}
+            filename = path.join(tblpath, "meo_canonical_exits.txt")
+            f = open(filename)
+            for line in f:
+                a, b = line.strip().split()
+                a = MapEnemyObject.get(int(a, 0x10))
+                if b == "None":
+                    b = None
+                else:
+                    b = MapEventObject.get(int(b, 0x10))
+                self._prelearned_canonical_exits[a] = b
+
+        return self._prelearned_canonical_exits[self]
+
+        '''
         if hasattr(self, "_canonical_exit"):
             return self._canonical_exit
 
@@ -868,6 +907,7 @@ class MapEnemyObject(GridMixin, TableObject):
 
         assert hasattr(self, "_canonical_exit")
         return self.canonical_exit
+        '''
 
     @property
     def cave_rank(self):
@@ -1180,6 +1220,7 @@ class Cluster():
         if filename is None:
             filename = path.join(tblpath, "exits.txt")
 
+        print "Loading clusters..."
         clu = Cluster()
         all_clusters = []
         for line in open(filename):
@@ -1204,7 +1245,6 @@ class Cluster():
 
 def generate_cave():
     print "GENERATING CAVE"
-    print "Loading clusters..."
     all_clusters = list(Cluster.generate_clusters())
 
     COMPLETION = 1.0
@@ -1666,6 +1706,32 @@ if __name__ == "__main__":
                        and g not in [TableObject]]
 
         run_interface(ALL_OBJECTS, snes=True)
+        '''
+        Area.all_areas
+        singletons = [c for c in Cluster.generate_clusters() if len(c.exits) == 1]
+        candidates = [c for c in singletons if len(c.exits[0].enemy_cell.area.enemy_cells) <= 8]
+        temp = []
+        for c in candidates:
+            enemy_cells = c.exits[0].enemy_cell.area.enemy_cells
+            keep = False
+            for ec in enemy_cells:
+                if keep:
+                    break
+                for me in ec.map_events:
+                    pass
+
+                if keep:
+                    break
+                for ms in ec.map_sprites:
+                    if ms.is_chest or ms.is_shop:
+                        keep = True
+                        break
+
+            if not keep:
+                temp.append(c)
+
+        import pdb; pdb.set_trace()
+        '''
 
         hexify = lambda x: "{0:0>2}".format("%x" % x)
         numify = lambda x: "{0: >3}".format(x)
