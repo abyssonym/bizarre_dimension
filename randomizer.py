@@ -1233,12 +1233,12 @@ class Cluster():
         if hasattr(Cluster, "_home"):
             return Cluster._home
 
-        exits = [me for me in MapEventObject.every if me.is_exit
-                 and me.global_y == 0x0150 and me.global_x in (0x1d20, 0x1e78)]
-        assert len(exits) == 2
         #exits = [me for me in MapEventObject.every if me.is_exit
-        #         and me.global_y == 0x0450 and me.global_x in (0x1f20,)]
-        #assert len(exits) == 1
+        #         and me.global_y == 0x0150 and me.global_x in (0x1d20, 0x1e78)]
+        #assert len(exits) == 2
+        exits = [me for me in MapEventObject.every if me.is_exit
+                 and me.global_y == 0x0450 and me.global_x in (0x1f20,)]
+        assert len(exits) == 1
         exits = set(exits)
         chosen = [c for c in Cluster.generate_clusters()
                   if exits <= set(c.exits)]
@@ -1435,32 +1435,32 @@ def generate_cave():
 
     for me in MapEventObject.every:
         if me.is_exit and not me.connected:
-            #me.connect_exit(me)
-            me.connect_exit(Cluster.home.exits[0])
+            me.connect_exit(me)
+            #me.connect_exit(Cluster.home.exits[0])
 
     f = open(get_outfile(), "r+b")
     f.seek(addresses.start_x)
-    write_multi(f, 0x1dcc, length=2)
+    write_multi(f, 0x1f80, length=2)
     f.seek(addresses.start_y)
-    write_multi(f, 0x0150, length=2)
+    write_multi(f, 0x0450, length=2)
     f.close()
 
     s = Script(0x5e70b)
     lines = []
     lines += [
-              (0x04, 0x68, 0x00),
-              (0x04, 0xC7, 0x00),
-              (0x04, 0xC8, 0x00),
-              (0x04, 0xA6, 0x01),
-              (0x04, 0x05, 0x02),
-              (0x05, 0x0B, 0x00),
-              (0x1F, 0x11, 0x02),
-              (0x1F, 0x11, 0x03),
-              (0x1F, 0x11, 0x04),
-              (0x1F, 0xB0),
+              (0x04, 0x62, 0x00),   # enable home phone
+              (0x04, 0x68, 0x00),   # normal music in onett
+              (0x04, 0xC7, 0x00),   # know dad's phone number
+              (0x04, 0xC8, 0x00),   # know mom's phone number
+              (0x04, 0xA6, 0x01),   # daytime in onett
+              (0x04, 0x05, 0x02),   # turn on lights at home
+              (0x05, 0x0B, 0x00),   # "enemies won't appear" flag (off)
+              (0x1F, 0x11, 0x02),   # recruit paula
+              (0x1F, 0x11, 0x03),   # recruit jeff
+              (0x1F, 0x11, 0x04),   # recruit poo
+              (0x1F, 0xB0),         # save the game
               (0x02,)]
     s.lines = lines
-    print s.pretty_script
     s.write_script()
 
     print "Sanitizing cave events."
