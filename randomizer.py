@@ -9,7 +9,7 @@ from randomtools.interface import (
     run_interface, rewrite_snes_meta, clean_and_write, finish_interface)
 from collections import defaultdict
 from os import path
-from time import time
+from time import time, sleep
 from collections import Counter
 
 
@@ -952,10 +952,20 @@ class MapEnemyObject(GridMixin, TableObject):
             self.enemy_place_index = 0
             return
 
-        max_index = len(EnemyPlaceObject.every)-1
-        index = int(round(max_index * (self.cave_rank**2)))
+        #if self.old_data["enemy_place_index"] == 0:
+        #    return
 
-        chosen = EnemyPlaceObject.ranked[index]
+        if random.random() < 0.01:
+            # magic butterfly
+            self.enemy_place_index = (
+                EnemyPlaceObject.valid_ranked_placements[0].index)
+            return
+
+        max_index = len(EnemyPlaceObject.valid_ranked_placements)-1
+        index = int(round(max_index * (self.cave_rank**1.5)))
+        index = max(index, 1)
+
+        chosen = EnemyPlaceObject.valid_ranked_placements[index]
         chosen = chosen.get_similar()
         self.enemy_place_index = chosen.index
 
@@ -1038,6 +1048,7 @@ class ZoneSpriteObject(ZoneMixin, TableObject):
 class Cluster():
     def __init__(self):
         self.exits = []
+        self.optional = False
 
     def __eq__(self, other):
         return self.index == other.index
@@ -1074,9 +1085,14 @@ class Cluster():
         self.set_rank(rank + value)
 
     def add_exit(self, s):
+        if s.startswith("."):
+            self.optional = True
+            s = s[1:]
+
         meid, x, y = map(lambda v: int(v, 0x10), s.split())
-        candidates = [c for c in MapEventObject.mutual_exits
-                      if c.global_x == x and c.global_y == y]
+        candidates = [c for c in MapEnemyObject.get(meid).map_events
+                      if c.is_exit and c.has_mutual_friend and
+                      c.global_x == x and c.global_y == y]
         if len(candidates) < 1:
             raise KeyError
         assert len(candidates) == 1
@@ -1338,11 +1354,13 @@ def generate_cave():
     assert not (set(singletons) & set(total_unassigned_exits))
 
     print "Assigning remaining exits..."
-    print len(singletons), len(total_unassigned_exits)
-    if len(singletons) > len(total_unassigned_exits):
-        to_assign = random.sample(singletons, len(total_unassigned_exits))
-    else:
-        to_assign = list(singletons)
+    to_assign = [s for s in singletons if not s.optional]
+    assert len(to_assign) < len(total_unassigned_exits)
+    remaining_singletons = [s for s in singletons if s.optional]
+    while len(to_assign) < len(total_unassigned_exits):
+        x = random.choice(remaining_singletons)
+        remaining_singletons.remove(x)
+        to_assign.append(x)
     assert len(to_assign) == len(total_unassigned_exits)
 
     for s in to_assign:
@@ -1449,11 +1467,29 @@ class EnemyPlaceObject(TableObject):
 
     @cached_property
     def rank(self):
+        if self.index == 0:
+            return -1
+
+        if 0 not in self.sub_group_rates or self.sub_group_rates[0] == 0:
+            return -1
+
+        #if sum(self.sub_group_rates.values()) == 0:
+        #    return -1
+
         try:
             return max([beo.rank for i in self.battle_entries.keys()
                         for beo in self.battle_entries[i]])
         except ValueError:
             return -1
+
+    @classproperty
+    def valid_ranked_placements(cls):
+        if hasattr(EnemyPlaceObject, "_valid_ranked_placements"):
+            return EnemyPlaceObject._valid_ranked_placements
+
+        EnemyPlaceObject._valid_ranked_placements = [
+            epo for epo in EnemyPlaceObject.ranked if epo.rank > 0]
+        return EnemyPlaceObject.valid_ranked_placements
 
 
 class BattleEntryObject(TableObject):
@@ -1582,6 +1618,29 @@ class ShopObject(TableObject):
         self.item_ids = new_item_ids
 
 
+class ExperienceObject(TableObject):
+    def cleanup(self):
+        if 'a' in get_flags():
+            per_character = 100
+            level = (self.index % per_character)-2
+            if level < 0:
+                return
+            assert self.xp
+            assert level < (per_character-2)
+            progress = float(level) / (per_character-3)
+            assert progress <= 1.0
+            progress *= 2
+            if progress >= 1.0:
+                return
+            progress = progress ** 0.5
+            assert self.xp == self.old_data['xp']
+            self.xp = int(round(self.xp * progress))
+            self.xp = max(self.xp, 1)
+            previous = ExperienceObject.get(self.index-1)
+            assert previous.xp == 0 or previous.old_data['xp'] != previous.xp
+            self.xp = max(self.xp, previous.xp+1)
+
+
 class EnemyObject(TableObject):
     flag = 'm'
     flag_description = "enemy stats"
@@ -1655,6 +1714,9 @@ class EnemyObject(TableObject):
                 setattr(self, attr,
                         max(getattr(self, attr), self.old_data[attr]))
 
+        if 'a' in get_flags():
+            self.xp = max(self.xp, 4)
+
 
 class StatGrowthObject(TableObject):
     flag = 'c'
@@ -1706,11 +1768,14 @@ if __name__ == "__main__":
                        and g not in [TableObject]]
 
         run_interface(ALL_OBJECTS, snes=True)
+
         '''
         Area.all_areas
         singletons = [c for c in Cluster.generate_clusters() if len(c.exits) == 1]
         candidates = [c for c in singletons if len(c.exits[0].enemy_cell.area.enemy_cells) <= 8]
+        candidates = list(singletons)
         temp = []
+        from subprocess import call
         for c in candidates:
             enemy_cells = c.exits[0].enemy_cell.area.enemy_cells
             keep = False
@@ -1728,9 +1793,15 @@ if __name__ == "__main__":
                         break
 
             if not keep:
-                temp.append(c)
-
-        import pdb; pdb.set_trace()
+                x1 = min([ec.x_bounds[0] for ec in enemy_cells])
+                x2 = max([ec.x_bounds[1] for ec in enemy_cells])
+                y1 = min([ec.y_bounds[0] for ec in enemy_cells])
+                y2 = max([ec.y_bounds[1] for ec in enemy_cells])
+                s = "_".join(str(c.exits[0]).split()[:3])
+                filename = "singletons/%s_%s.png" % (c.exits[0].enemy_cell.index, s)
+                cropstring = "%sx%s+%s+%s!" % (x2-x1, y2-y1, x1, y1)
+                cmd = ["convert", "fullmap.png", "-crop", cropstring, filename]
+                call(cmd)
         '''
 
         hexify = lambda x: "{0:0>2}".format("%x" % x)
