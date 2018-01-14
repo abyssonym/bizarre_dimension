@@ -150,7 +150,13 @@ class Script:
             ]
         self.remove_instructions(keys, write=write)
 
-    def remove_instructions(self, keys, write=True):
+    def remove_instructions(self, keys, write=True, done_scripts=None):
+        if done_scripts is None:
+            done_scripts = []
+
+        if self in done_scripts:
+            return
+
         newlines = []
         for line in self.lines:
             if tuple(line[:2]) in keys:
@@ -160,6 +166,11 @@ class Script:
             self.lines = newlines
             if write:
                 self.write_script()
+
+        done_scripts.append(self)
+
+        for s in self.subscripts:
+            s.remove_instructions(keys, write=write, done_scripts=done_scripts)
 
     @classmethod
     def get_by_pointer(self, pointer):
