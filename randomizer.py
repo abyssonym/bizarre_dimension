@@ -135,6 +135,32 @@ class Script:
         assert type(self) is type(other)
         return self.pointer < other.pointer
 
+    def remove_teleports(self, write=True):
+        keys = [
+            (0x1f, 0x20),
+            (0x1f, 0x21),
+            (0x1f, 0x69),
+            ]
+        self.remove_instructions(keys, write=write)
+
+    def remove_party_changes(self, write=True):
+        keys = [
+            (0x1f, 0x11),
+            (0x1f, 0x12),
+            ]
+        self.remove_instructions(keys, write=write)
+
+    def remove_instructions(self, keys, write=True):
+        newlines = []
+        for line in self.lines:
+            if tuple(line[:2]) in keys:
+                continue
+            newlines.append(line)
+        if len(newlines) < len(self.lines):
+            self.lines = newlines
+            if write:
+                self.write_script()
+
     @classmethod
     def get_by_pointer(self, pointer):
         if not hasattr(self, "_cached_by_pointer"):
@@ -938,6 +964,18 @@ class MapEnemyObject(GridMixin, TableObject):
         return MapMusicObject.get_by_grid(
             self.grid_x/4, self.grid_y/2).music_index
 
+    def cave_sanitize_events(self):
+        if self.cave_rank is None:
+            return
+
+        for o in self.map_events + self.map_sprites:
+            script = o.script
+            if script is None:
+                continue
+            script.remove_teleports(write=False)
+            script.remove_party_changes(write=False)
+            script.write_script()
+
     def randomize(self):
         assert 'a' in get_flags()
 
@@ -1425,6 +1463,10 @@ def generate_cave():
     print s.pretty_script
     s.write_script()
 
+    print "Sanitizing cave events."
+    for meo in MapEnemyObject.every:
+        meo.cave_sanitize_events()
+
 
 class EnemyPlaceObject(TableObject):
     @classproperty
@@ -1751,10 +1793,25 @@ class InitialStatsObject(TableObject):
                 items.append(ItemObject.get(i))
         return items
 
+    def clear_inventory(self):
+        self.item_indexes = [0] * len(self.item_indexes)
+
+    def add_item(self, item):
+        if isinstance(item, ItemObject):
+            item = item.index
+
+        self.item_indexes = [i for i in self.item_indexes if i > 0]
+        self.item_indexes.append(item)
+        while len(self.item_indexes) < 10:
+            self.item_indexes.append(0)
+
     def cleanup(self):
         if 'a' in get_flags():
             self.level = 1
             self.xp = 0
+            if self.index == 0:
+                self.money = 100
+                self.add_item(0xC4)  # sound stone
 
 
 if __name__ == "__main__":
