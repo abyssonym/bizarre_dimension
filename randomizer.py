@@ -153,22 +153,48 @@ class Script:
     def __hash__(self):
         return self.pointer
 
-    def remove_teleports(self, write=True):
+    def has_battle_trigger(self):
+        if hasattr(self, "_has_battle_trigger"):
+            return self._has_battle_trigger
+
+        self._has_battle_trigger = False
+
+        for line in self.lines:
+            if tuple(line[:2]) == (0x1f, 0x23):
+                self._has_battle_trigger = True
+                break
+        else:
+            for s in self.subscript_closure:
+                if s is self:
+                    continue
+                if s.has_battle_trigger:
+                    self._has_battle_trigger = True
+                    break
+
+        return self.has_battle_trigger
+
+    def remove_teleports(self):
+        if hasattr(self, "_removed_teleports") and self._removed_teleports:
+            return
         keys = [
             (0x1f, 0x20),
             (0x1f, 0x21),
             (0x1f, 0x69),
             ]
-        self.remove_instructions(keys, write=write)
+        self.remove_instructions(keys)
+        self._removed_teleports = True
 
-    def remove_party_changes(self, write=True):
+    def remove_party_changes(self):
+        if hasattr(self, "_removed_party") and self._removed_party:
+            return
         keys = [
             (0x1f, 0x11),
             (0x1f, 0x12),
             ]
-        self.remove_instructions(keys, write=write)
+        self.remove_instructions(keys)
+        self._removed_party = True
 
-    def remove_instructions(self, keys, write=True):
+    def remove_instructions(self, keys):
         for s in self.subscript_closure:
             newlines = []
             for line in s.lines:
@@ -177,8 +203,14 @@ class Script:
                 newlines.append(line)
             if len(newlines) < len(s.lines):
                 s.lines = newlines
-                if write:
-                    s.write_script()
+                s.schedule_for_writing()
+
+    def schedule_for_writing(self):
+        self.please_write = True
+
+    def fulfill_scheduled_write(self):
+        if hasattr(self, "please_write") and self.please_write:
+            self.write_script()
 
     @cached_property
     def subscript_closure(self):
@@ -298,6 +330,7 @@ class Script:
         f = open(get_outfile(), "r+b")
         pointer = self.pointer
         self.lines = []
+        nesting = 0
         while True:
             f.seek(pointer)
             key = (ord(f.read(1)),)
@@ -319,11 +352,12 @@ class Script:
             if length is None:
                 f.seek(pointer+len(key))
                 numargs = ord(f.read(1))
-                length = len(key) + 1 + (numargs*4)
-                # TODO: add subpointers
+                newlength = len(key) + 1 + (numargs*4)
+            else:
+                newlength = length
 
             f.seek(pointer)
-            line = tuple(map(ord, f.read(length)))
+            line = tuple(map(ord, f.read(newlength)))
 
             if length is None or key in [
                     (0x06,), (0x08,), (0x0a,),
@@ -338,10 +372,16 @@ class Script:
                     self.subpointers.add(subpointer)
 
             self.lines.append(line)
-            pointer += length
+            pointer += newlength
+            if key == (0x19, 0x02):
+                nesting += 1
+
             if key == (0x02,) and (
                     self.endpointer is None or pointer >= self.endpointer):
-                break
+                if nesting == 0:
+                    break
+                else:
+                    nesting -= 1
         f.close()
         self.old_length = self.length
 
@@ -356,6 +396,7 @@ class Script:
             s += "".join(map(chr, line))
         f.write(s)
         f.close()
+        self.please_write = False
 
     @classmethod
     def get_pretty_line_description(self, line):
@@ -610,9 +651,11 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     def connect_exit(self, other):
         if other.friend:
             friend = other.friend
+            friend.event.event_flag = 0
         elif other is self:
             friend = self
-        friend.event.event_flag = 0
+            friend.event.event_flag = 0x8154
+            friend.event.warp_style = 0
 
         for x in self.neighbors:
             x.event_index = friend.old_data["event_index"]
@@ -768,6 +811,10 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     @property
     def script(self):
         return self.tpt.script
+
+    @property
+    def has_battle_trigger(self):
+        return self.script and self.script.has_battle_trigger
 
     @property
     def is_chest(self):
@@ -1026,16 +1073,12 @@ class MapEnemyObject(GridMixin, TableObject):
             self.grid_x/4, self.grid_y/2).music_index
 
     def cave_sanitize_events(self):
-        if self.cave_rank is None:
-            return
-
         for o in self.map_events + self.map_sprites:
             script = o.script
             if script is None:
                 continue
-            script.remove_teleports(write=False)
-            script.remove_party_changes(write=False)
-            script.write_script()
+            script.remove_teleports()
+            script.remove_party_changes()
 
     def randomize(self):
         assert 'a' in get_flags()
@@ -1067,6 +1110,10 @@ class MapEnemyObject(GridMixin, TableObject):
         chosen = EnemyPlaceObject.valid_ranked_placements[index]
         chosen = chosen.get_similar()
         self.enemy_place_index = chosen.index
+
+    def cleanup(self):
+        if "easymodo" in get_activated_codes():
+            self.enemy_place_index = 0
 
 
 class MapPaletteObject(GridMixin, TableObject):
@@ -1160,6 +1207,22 @@ class Cluster():
             return False
         assert type(self) is type(other)
         return self.rank < other.rank
+
+    @property
+    def area(self):
+        return self.exits[0].enemy_cell.area
+
+    @property
+    def enemy_cells(self):
+        return self.area.enemy_cells
+
+    @property
+    def map_sprites(self):
+        return self.area.map_sprites
+
+    @property
+    def has_battle_trigger(self):
+        return any([ms.has_battle_trigger for ms in self.map_sprites])
 
     @property
     def rank(self):
@@ -1421,13 +1484,18 @@ def generate_cave():
 
     for i, (num, tc) in enumerate(zip(num_per_segment, temp_checkpoints)):
         for _ in xrange(1000):
-            chosens = random.sample(candidates, num)
+            if i == 0:
+                temp_candidates = [
+                    c for c in candidates if not c.has_battle_trigger]
+                chosens = random.sample(temp_candidates, num)
+            else:
+                chosens = random.sample(candidates, num)
             chosen_health = sum([len(c.unassigned_exits)-2 for c in chosens])
             if chosen_health >= 3:
                 temp = [c for c in candidates if c not in chosens]
-                temp_health = sum([len(t.unassigned_exits)-2 for t in chosens])
+                temp_health = sum([len(t.unassigned_exits)-2 for t in temp])
                 threshold = ((num_segments-1)-i) * 3
-                if temp_health > threshold:
+                if temp_health >= threshold:
                     break
         else:
             raise Exception("Unable to select appropriate exits.")
@@ -1559,9 +1627,18 @@ def generate_cave():
     s.lines = lines
     s.write_script()
 
-    print "Sanitizing cave events."
-    for meo in MapEnemyObject.every:
-        meo.cave_sanitize_events()
+    print "Sanitizing cave events..."
+    #for meo in MapEnemyObject.every:
+    #    meo.cave_sanitize_events()
+    f = open(path.join(tblpath, "problematic_scripts.txt"))
+    for line in f:
+        pointer = int(line.strip(), 0x10)
+        s = Script.get_by_pointer(pointer)
+        s.remove_teleports()
+        s.remove_party_changes()
+    f.close()
+    for s in Script._all_scripts:
+        s.fulfill_scheduled_write()
 
 
 class EnemyPlaceObject(TableObject):
@@ -1798,7 +1875,7 @@ class EnemyObject(TableObject):
         "drop_frequency": None,
         "drop_item_index": ItemObject,
         "mirror_success_rate": None,
-        "max_call": None,
+        #"max_call": None,
         "weakness_fire": None,
         "weakness_freeze": None,
         "weakness_flash": None,
@@ -1812,10 +1889,10 @@ class EnemyObject(TableObject):
         "mirror_success_rate",
         ]
     randomize_attributes = [
-        "order",
+        #"order",
         ]
     shuffle_attributes = [
-        ("action1", "action2", "action3", "action4"),
+        #("action1", "action2", "action3", "action4"),
         ]
 
     @property
@@ -1911,6 +1988,9 @@ class InitialStatsObject(TableObject):
                 self.add_item(0xC4)  # sound stone
                 self.add_item(0x11)  # cracked bat
 
+        if "easymodo" in get_activated_codes():
+            self.level = 99
+
 
 if __name__ == "__main__":
     try:
@@ -1922,7 +2002,10 @@ if __name__ == "__main__":
                        if isinstance(g, type) and issubclass(g, TableObject)
                        and g not in [TableObject]]
 
-        run_interface(ALL_OBJECTS, snes=True)
+        codes = {
+            "easymodo": ["easymodo"],
+        }
+        run_interface(ALL_OBJECTS, snes=True, codes=codes)
 
         '''
         bosses = set([])
@@ -1993,7 +2076,9 @@ if __name__ == "__main__":
             call(cmd)
         '''
 
-        #import pdb; pdb.set_trace()
+        for x in MapEventObject.all_exits:
+            if "ONETT" in x.enemy_cell.area.label:
+                print x, hex(x.event.event_call), hex(x.event.event_flag), hex(x.event.warp_style)
 
         hexify = lambda x: "{0:0>2}".format("%x" % x)
         numify = lambda x: "{0: >3}".format(x)
