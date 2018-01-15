@@ -27,6 +27,21 @@ for line in open(text_map_filename):
 TEXT_MAPPING[0] = None
 
 
+SANCTUARY_BOSS_POINTERS = [
+    0x68409,
+    0x68410,
+    0x6841e,
+    0x68417,
+    0x68425,
+    0x6842c,
+    0x68433,
+    0x6843a,
+    ]
+
+SANCTUARY_BOSS_INDEXES = [
+    0x19, 0x1f, 0xc0, 0x147, 0x16e, 0x1d0, 0x30b, 0x3a2]  # NOT 0x2b4
+
+
 def bytes_to_text(s):
     result = ""
     while s:
@@ -135,6 +150,9 @@ class Script:
         assert type(self) is type(other)
         return self.pointer < other.pointer
 
+    def __hash__(self):
+        return self.pointer
+
     def remove_teleports(self, write=True):
         keys = [
             (0x1f, 0x20),
@@ -150,27 +168,39 @@ class Script:
             ]
         self.remove_instructions(keys, write=write)
 
-    def remove_instructions(self, keys, write=True, done_scripts=None):
-        if done_scripts is None:
-            done_scripts = []
+    def remove_instructions(self, keys, write=True):
+        for s in self.subscript_closure:
+            newlines = []
+            for line in s.lines:
+                if tuple(line[:2]) in keys:
+                    continue
+                newlines.append(line)
+            if len(newlines) < len(s.lines):
+                s.lines = newlines
+                if write:
+                    s.write_script()
 
-        if self in done_scripts:
-            return
+    @cached_property
+    def subscript_closure(self):
+        ss = set([self])
+        while True:
+            oldlength = len(ss)
+            for s in sorted(ss):
+                ss |= set(s.subscripts)
+            if len(ss) == oldlength:
+                break
+        return sorted(ss, key=lambda s: s.pointer)
 
-        newlines = []
-        for line in self.lines:
-            if tuple(line[:2]) in keys:
-                continue
-            newlines.append(line)
-        if len(newlines) < len(self.lines):
-            self.lines = newlines
-            if write:
-                self.write_script()
-
-        done_scripts.append(self)
-
-        for s in self.subscripts:
-            s.remove_instructions(keys, write=write, done_scripts=done_scripts)
+    @cached_property
+    def enemy_encounters(self):
+        es = []
+        for s in self.subscript_closure:
+            for line in s.lines:
+                if tuple(line[:2]) == (0x1f, 0x23):
+                    index = (line[3] << 8) | line[2]
+                    e = BattleEntryObject.get(index)
+                    es.append(e)
+        return sorted(es, key=lambda e: e.index)
 
     @classmethod
     def get_by_pointer(self, pointer):
@@ -617,6 +647,8 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             filename = path.join(tblpath, "meo_friends.txt")
             f = open(filename)
             for line in f:
+                if line.startswith("#"):
+                    continue
                 a, b = line.strip().split()
                 a = MapEventObject.get(int(a, 0x10))
                 if b == "None":
@@ -790,6 +822,26 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     def cave_rank(self):
         return self.enemy_cell.cave_rank
 
+    @property
+    def is_sanctuary_boss(self):
+        return self.index in SANCTUARY_BOSS_INDEXES
+
+    @cached_property
+    def nearest_exit(self):
+        def dist(x):
+            return (((x.global_x - self.global_x)**2) +
+                    ((x.global_y - self.global_y)**2))
+        candidates = [meo for meo in MapEventObject.all_exits
+                      if meo.enemy_cell.area == self.enemy_cell.area]
+        sorted_exits = sorted(candidates, key=lambda meo: dist(meo))
+        return sorted_exits[0].canonical_neighbor
+
+    @cached_property
+    def nearest_cluster(self):
+        for c in Cluster.generate_clusters():
+            if self.nearest_exit in c.exits:
+                return c
+
     def mutate(self):
         if not self.is_chest:
             return
@@ -859,9 +911,10 @@ class MapEnemyObject(GridMixin, TableObject):
 
     @property
     def area(self):
-        if hasattr(self, "_area"):
-            return self._area
-        return None
+        if not hasattr(self, "_area"):
+            Area.all_areas
+
+        return self._area
 
     @property
     def neighbors(self):
@@ -873,9 +926,6 @@ class MapEnemyObject(GridMixin, TableObject):
                     neighbors.append(MapEnemyObject.get(index))
                 except KeyError:
                     continue
-
-        if not hasattr(Area, "_all_areas"):
-            Area.all_areas
 
         for n in list(neighbors):
             if abs(n.grid_x - self.grid_x) > 1:
@@ -1001,8 +1051,8 @@ class MapEnemyObject(GridMixin, TableObject):
             self.enemy_place_index = 0
             return
 
-        #if self.old_data["enemy_place_index"] == 0:
-        #    return
+        if self.old_data["enemy_place_index"] == 0 and self.map_sprites:
+            return
 
         if random.random() < 0.01:
             # magic butterfly
@@ -1138,10 +1188,19 @@ class Cluster():
             self.optional = True
             s = s[1:]
 
+        force = False
+        if s.startswith("!"):
+            force = True
+            s = s[1:]
+
         meid, x, y = map(lambda v: int(v, 0x10), s.split())
-        candidates = [c for c in MapEnemyObject.get(meid).map_events
-                      if c.is_exit and c.has_mutual_friend and
-                      c.global_x == x and c.global_y == y]
+        if not force:
+            candidates = [c for c in MapEnemyObject.get(meid).map_events
+                          if c.is_exit and c.has_mutual_friend and
+                          c.global_x == x and c.global_y == y]
+        else:
+            candidates = [c for c in MapEnemyObject.get(meid).map_events
+                          if c.is_exit and c.global_x == x and c.global_y == y]
         if len(candidates) < 1:
             raise KeyError
         assert len(candidates) == 1
@@ -1150,6 +1209,11 @@ class Cluster():
             if chosen in x.neighbors:
                 assert chosen is x
                 return
+
+        chosen.force = False
+        if force:
+            chosen.force = True
+
         self.exits.append(chosen)
         self.exits = sorted(self.exits, key=lambda x: x.pointer)
 
@@ -1299,6 +1363,8 @@ class Cluster():
                 clu.add_exit(line.strip())
             except KeyError:
                 pass
+                #print line.strip()
+                #import pdb; pdb.set_trace()
 
         assert len(all_clusters) == len(
             set([clu.index for clu in all_clusters]))
@@ -1322,7 +1388,11 @@ def generate_cave():
     titanic_ant = titanic_ant[0]
     assert len(titanic_ant.unassigned_exits) == 2
 
-    checkpoints = [Cluster.home, titanic_ant, Cluster.goal]
+    sbosses = [mso for mso in MapSpriteObject.every
+               if mso.index in SANCTUARY_BOSS_INDEXES]
+    sclusters = [mso.nearest_cluster for mso in sbosses]
+
+    checkpoints = [Cluster.home] + sclusters + [Cluster.goal]
     for c in checkpoints:
         all_clusters.remove(c)
 
@@ -1356,7 +1426,7 @@ def generate_cave():
             if chosen_health >= 3:
                 temp = [c for c in candidates if c not in chosens]
                 temp_health = sum([len(t.unassigned_exits)-2 for t in chosens])
-                threshold = (num_segments-i) * 3
+                threshold = ((num_segments-1)-i) * 3
                 if temp_health > threshold:
                     break
         else:
@@ -1370,11 +1440,24 @@ def generate_cave():
         chosens = sorted(checkpoint_dict[cp1], key=lambda c: c.index)
         aa = cp1
         assert aa.unassigned_exits
-        bb = random.choice(chosens)
+
+        assert any([len(c.exits) > 2 for c in chosens])
+        if cp1 is Cluster.home or random.choice([True, False]):
+            candidates = [c for c in chosens if len(c.unassigned_exits) > 2]
+        else:
+            candidates = [c for c in chosens if len(c.unassigned_exits) > 1]
+        candidates = sorted(candidates,
+            key=lambda c: (len(c.exits), random.random(), c.index))
+        max_index = len(candidates)-1
+        index = random.randint(random.randint(0, max_index), max_index)
+        bb = candidates[index]
+        assert bb in candidates
+        assert bb in chosens
         assert bb.unassigned_exits
         a, b = (random.choice(aa.unassigned_exits),
                 random.choice(bb.unassigned_exits))
         Cluster.assign_exit_pair(a, b)
+        assert bb.unassigned_exits
         done = [aa, bb]
         chosens = [cp1] + chosens + [cp2]
         while set(done) != set(chosens):
@@ -1389,6 +1472,8 @@ def generate_cave():
                                   random_degree=NONLINEARITY)
             aa = candidates[index]
             assert aa.unassigned_exits
+            if len(candidates) == 1 and len(aa.unassigned_exits) == 1 and len(bb.unassigned_exits) == 1:
+                raise Exception("Something weird here.")
             a, b = (random.choice(aa.unassigned_exits),
                     random.choice(bb.unassigned_exits))
             Cluster.assign_exit_pair(a, b)
@@ -1436,7 +1521,7 @@ def generate_cave():
     for clu in Cluster.ranked_clusters:
         for a in clu.exits:
             b = Cluster.assign_dict[a]
-            assert b.has_mutual_friend
+            assert b.force or b.has_mutual_friend
             a.connect_exit(b)
 
     for s in singletons:
@@ -1813,6 +1898,7 @@ class InitialStatsObject(TableObject):
 
         self.item_indexes = [i for i in self.item_indexes if i > 0]
         self.item_indexes.append(item)
+        self.item_indexes = sorted(self.item_indexes, reverse=True)
         while len(self.item_indexes) < 10:
             self.item_indexes.append(0)
 
@@ -1823,6 +1909,7 @@ class InitialStatsObject(TableObject):
             if self.index == 0:
                 self.money = 100
                 self.add_item(0xC4)  # sound stone
+                self.add_item(0x11)  # cracked bat
 
 
 if __name__ == "__main__":
@@ -1838,7 +1925,24 @@ if __name__ == "__main__":
         run_interface(ALL_OBJECTS, snes=True)
 
         '''
-        Area.all_areas
+        bosses = set([])
+        for mso in MapSpriteObject.every:
+            script = mso.script
+            if script is None:
+                continue
+            es = mso.script.enemy_encounters
+            for e in es:
+                bosses.add(e)
+
+        for b in sorted(bosses):
+            print b
+        print
+        sample = random.sample(bosses, 8)
+        for s in sorted(sample):
+            print s
+        '''
+
+        '''
         singletons = [c for c in Cluster.generate_clusters() if len(c.exits) == 1]
         candidates = [c for c in singletons if len(c.exits[0].enemy_cell.area.enemy_cells) <= 8]
         candidates = list(singletons)
@@ -1871,6 +1975,25 @@ if __name__ == "__main__":
                 cmd = ["convert", "fullmap.png", "-crop", cropstring, filename]
                 call(cmd)
         '''
+
+        '''
+        candidates = [c for c in Cluster.generate_clusters()
+                      if c.exits[0].zone.muspal_signature == (213, 56)]
+        from subprocess import call
+        for c in candidates:
+            enemy_cells = c.exits[0].enemy_cell.area.enemy_cells
+            x1 = min([ec.x_bounds[0] for ec in enemy_cells])
+            x2 = max([ec.x_bounds[1] for ec in enemy_cells])
+            y1 = min([ec.y_bounds[0] for ec in enemy_cells])
+            y2 = max([ec.y_bounds[1] for ec in enemy_cells])
+            s = "_".join(str(c.exits[0]).split()[:3])
+            filename = "monkey_tunnels/%s_%s.png" % (c.exits[0].enemy_cell.index, s)
+            cropstring = "%sx%s+%s+%s!" % (x2-x1, y2-y1, x1, y1)
+            cmd = ["convert", "fullmap.png", "-crop", cropstring, filename]
+            call(cmd)
+        '''
+
+        #import pdb; pdb.set_trace()
 
         hexify = lambda x: "{0:0>2}".format("%x" % x)
         numify = lambda x: "{0: >3}".format(x)
