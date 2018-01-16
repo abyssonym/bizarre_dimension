@@ -1074,5 +1074,5 @@ fd 9a
 43a 6f4
 43b 6f4
 # electro spectre (on the other side of ES but w/e)
-9 b
-a b
+9 1c6
+a 1c6
