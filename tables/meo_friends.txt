@@ -1070,11 +1070,9 @@ fd 9a
 81d 771
 81e 75f
 81f 75f
-#43a 394
-#43b 394
-#394 43a
-#395 43a
+# thunder and storm
 43a 6f4
 43b 6f4
-#6f4 43a
-#6f5 43a
+# electro spectre (on the other side of ES but w/e)
+9 b
+a b

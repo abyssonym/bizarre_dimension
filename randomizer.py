@@ -649,17 +649,30 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
                                  self.event_index, self.enemy_cell.index]])
 
     def connect_exit(self, other):
-        if other.friend:
+        assert not self.connected
+        if other.connected:
+            assert other.connected is self
+
+        if other is self:
+            if self.event.event_flag != 0x8154:
+                for x in self.neighbors:
+                    x.event_type = 5
+        else:
             friend = other.friend
             friend.event.event_flag = 0
-        elif other is self:
-            friend = self
-            friend.event.event_flag = 0x8154
-            friend.event.warp_style = 0
+            for x in self.neighbors:
+                x.event_index = friend.old_data["event_index"]
 
         for x in self.neighbors:
-            x.event_index = friend.old_data["event_index"]
-            x._connected = True
+            x._connected = other
+
+    @classproperty
+    def dialogue_doors(cls):
+        if hasattr(MapEventObject, "_dialogue_doors"):
+            return MapEventObject._dialogue_doors
+        MapEventObject._dialogue_doors = [x for x in MapEventObject.all_exits
+                                          if x.event.event_flag == 0x8154]
+        return MapEventObject.dialogue_doors
 
     @property
     def connected(self):
@@ -1990,6 +2003,8 @@ class InitialStatsObject(TableObject):
 
         if "easymodo" in get_activated_codes():
             self.level = 99
+            if self.index == 0:
+                self.money = 65000
 
 
 if __name__ == "__main__":
@@ -2075,10 +2090,6 @@ if __name__ == "__main__":
             cmd = ["convert", "fullmap.png", "-crop", cropstring, filename]
             call(cmd)
         '''
-
-        for x in MapEventObject.all_exits:
-            if "ONETT" in x.enemy_cell.area.label:
-                print x, hex(x.event.event_call), hex(x.event.event_flag), hex(x.event.warp_style)
 
         hexify = lambda x: "{0:0>2}".format("%x" % x)
         numify = lambda x: "{0: >3}".format(x)
