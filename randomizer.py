@@ -156,7 +156,6 @@ class Script:
     def replace_sanctuary_boss(self, boss):
         for s in self.subscript_closure:
             if s.is_battle_source:
-                print hex(s.pointer), boss
                 newlines = []
                 for line in s.lines:
                     if tuple(line[:2]) == (0x1f, 0x23):
@@ -1245,6 +1244,75 @@ class Cluster():
         assert type(self) is type(other)
         return self.rank < other.rank
 
+    def generate_image(self, filename=None, chosen_exit=None):
+        from subprocess import call
+        x1 = min([ec.x_bounds[0] for ec in self.enemy_cells])
+        x2 = max([ec.x_bounds[1] for ec in self.enemy_cells])
+        y1 = min([ec.y_bounds[0] for ec in self.enemy_cells])
+        y2 = max([ec.y_bounds[1] for ec in self.enemy_cells])
+        cropstring = "%sx%s+%s+%s!" % (x2-x1, y2-y1, x1, y1)
+        cmd = ["convert", "fullmap.png", "-crop", cropstring]
+        if chosen_exit is not None:
+            try:
+                assert chosen_exit in self.exits
+                assert x1 <= chosen_exit.global_x <= x2
+                assert y1 <= chosen_exit.global_y <= y2
+            except:
+                import pdb; pdb.set_trace()
+            x3 = chosen_exit.global_x - x1
+            y3 = chosen_exit.global_y - y1
+            dimensions = "%s,%s %s,%s" % (x3, y3, x3, y3+5)
+            cmd += ["-fill", "red", "-stroke", "black",
+                    "-draw", "circle %s" % dimensions]
+
+        cmd.append(filename)
+        print " ".join(cmd)
+        call(cmd)
+
+    @classmethod
+    def find_shortest_path(cls, home=None, goal=None):
+        if home is None:
+            home = Cluster.home
+        if goal is None:
+            goal = Cluster.goal
+
+        leafs = [home]
+        shortest_paths = {home: []}
+        while True:
+            new_leafs = []
+            for leaf in leafs:
+                options = [leaf.get_connected_cluster(x) for x in leaf.exits]
+                for o in options:
+                    if o in shortest_paths:
+                        continue
+                    shortest_paths[o] = shortest_paths[leaf] + [leaf]
+                    new_leafs.append(o)
+            leafs = new_leafs
+            if goal in shortest_paths:
+                return shortest_paths[goal]
+
+    @classmethod
+    def generate_map(cls):
+        shortest_path = Cluster.find_shortest_path()
+        for (i, c) in enumerate(shortest_path):
+            filename = "maps/{0}_{1:0>3}.png".format(get_seed(), i)
+            if (i+1) < len(shortest_path):
+                c2 = shortest_path[i+1]
+                for x in c.exits:
+                    if c.get_connected_cluster(x) is c2:
+                        break
+                else:
+                    raise Exception("Break in path??")
+            else:
+                x = None
+            c.generate_image(filename, chosen_exit=x)
+
+
+    def get_connected_cluster(self, x1):
+        x2 = Cluster.assign_dict[x1]
+        c = Cluster.get_by_exit(x2)
+        return c
+
     @property
     def area(self):
         return self.exits[0].enemy_cell.area
@@ -1453,7 +1521,10 @@ class Cluster():
         clu = Cluster()
         all_clusters = []
         for line in open(filename):
-            if (line and line[0] in ":#") or not line.strip():
+            if line and line[0] == "#":
+                continue
+
+            if (line and line[0] == ":") or not line.strip():
                 if clu.exits:
                     all_clusters.append(clu)
                 clu = Cluster()
@@ -1698,6 +1769,10 @@ def replace_sanctuary_bosses():
 
     bosses = sorted(bosses,
                     key=lambda b: (b.rank, random.random(), b.index))
+
+    BANNED = [0x1ce]  # clumsy robot
+    bosses = [b for b in bosses if b.index not in BANNED]
+
     chosens = []
     while len(chosens) < len(sclusters):
         candidates = [b for b in bosses if b not in chosens]
@@ -2078,77 +2153,9 @@ if __name__ == "__main__":
 
         codes = {
             "easymodo": ["easymodo"],
+            "mapper": ["mapper"],
         }
         run_interface(ALL_OBJECTS, snes=True, codes=codes)
-
-        '''
-        bosses = set([])
-        for mso in MapSpriteObject.every:
-            script = mso.script
-            if script is None:
-                continue
-            es = mso.script.enemy_encounters
-            for e in es:
-                bosses.add(e)
-
-        for b in sorted(bosses):
-            print b
-        print
-        sample = random.sample(bosses, 8)
-        for s in sorted(sample):
-            print s
-        '''
-
-        '''
-        singletons = [c for c in Cluster.generate_clusters() if len(c.exits) == 1]
-        candidates = [c for c in singletons if len(c.exits[0].enemy_cell.area.enemy_cells) <= 8]
-        candidates = list(singletons)
-        temp = []
-        from subprocess import call
-        for c in candidates:
-            enemy_cells = c.exits[0].enemy_cell.area.enemy_cells
-            keep = False
-            for ec in enemy_cells:
-                if keep:
-                    break
-                for me in ec.map_events:
-                    pass
-
-                if keep:
-                    break
-                for ms in ec.map_sprites:
-                    if ms.is_chest or ms.is_shop:
-                        keep = True
-                        break
-
-            if not keep:
-                x1 = min([ec.x_bounds[0] for ec in enemy_cells])
-                x2 = max([ec.x_bounds[1] for ec in enemy_cells])
-                y1 = min([ec.y_bounds[0] for ec in enemy_cells])
-                y2 = max([ec.y_bounds[1] for ec in enemy_cells])
-                s = "_".join(str(c.exits[0]).split()[:3])
-                filename = "singletons/%s_%s.png" % (c.exits[0].enemy_cell.index, s)
-                cropstring = "%sx%s+%s+%s!" % (x2-x1, y2-y1, x1, y1)
-                cmd = ["convert", "fullmap.png", "-crop", cropstring, filename]
-                call(cmd)
-        '''
-
-        '''
-        candidates = [c for c in Cluster.generate_clusters()
-                      if c.exits[0].zone.muspal_signature == (213, 56)]
-        from subprocess import call
-        for c in candidates:
-            enemy_cells = c.exits[0].enemy_cell.area.enemy_cells
-            x1 = min([ec.x_bounds[0] for ec in enemy_cells])
-            x2 = max([ec.x_bounds[1] for ec in enemy_cells])
-            y1 = min([ec.y_bounds[0] for ec in enemy_cells])
-            y2 = max([ec.y_bounds[1] for ec in enemy_cells])
-            s = "_".join(str(c.exits[0]).split()[:3])
-            filename = "monkey_tunnels/%s_%s.png" % (c.exits[0].enemy_cell.index, s)
-            cropstring = "%sx%s+%s+%s!" % (x2-x1, y2-y1, x1, y1)
-            cmd = ["convert", "fullmap.png", "-crop", cropstring, filename]
-            call(cmd)
-        '''
 
         hexify = lambda x: "{0:0>2}".format("%x" % x)
         numify = lambda x: "{0: >3}".format(x)
@@ -2156,8 +2163,12 @@ if __name__ == "__main__":
 
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)
+
+        if "mapper" in get_activated_codes():
+            Cluster.generate_map()
+
         finish_interface()
 
-    except IOError, e:
+    except Exception, e:
         print "ERROR: %s" % e
         raw_input("Press Enter to close this program.")
