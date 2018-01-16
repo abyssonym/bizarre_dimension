@@ -153,6 +153,28 @@ class Script:
     def __hash__(self):
         return self.pointer
 
+    def replace_sanctuary_boss(self, boss):
+        for s in self.subscript_closure:
+            if s.is_battle_source:
+                print hex(s.pointer), boss
+                newlines = []
+                for line in s.lines:
+                    if tuple(line[:2]) == (0x1f, 0x23):
+                        a, b = (boss.index & 0xFF, boss.index >> 8)
+                        newlines.append([0x1f, 0x23, a, b])
+                    else:
+                        newlines.append(line)
+                s.lines = newlines
+                s.write_script()
+
+    @property
+    def is_battle_source(self):
+        self.has_battle_trigger
+        if hasattr(self, "_is_battle_source"):
+            return self._is_battle_source
+        return False
+
+    @property
     def has_battle_trigger(self):
         if hasattr(self, "_has_battle_trigger"):
             return self._has_battle_trigger
@@ -161,6 +183,7 @@ class Script:
 
         for line in self.lines:
             if tuple(line[:2]) == (0x1f, 0x23):
+                self._is_battle_source = True
                 self._has_battle_trigger = True
                 break
         else:
@@ -582,6 +605,7 @@ class AncientCave(TableObject):
 
     @classmethod
     def full_randomize(cls):
+        AncientCave.class_reseed("ancient")
         generate_cave()
         super(AncientCave, cls).full_randomize()
 
@@ -1467,6 +1491,7 @@ def generate_cave():
     sbosses = [mso for mso in MapSpriteObject.every
                if mso.index in SANCTUARY_BOSS_INDEXES]
     sclusters = [mso.nearest_cluster for mso in sbosses]
+    random.shuffle(sclusters)
 
     checkpoints = [Cluster.home] + sclusters + [Cluster.goal]
     for c in checkpoints:
@@ -1476,9 +1501,13 @@ def generate_cave():
     singletons = [c for c in all_clusters if len(c.unassigned_exits) <= 1]
     pairs = [c for c in all_clusters if len(c.unassigned_exits) == 2]
     multiples = [c for c in all_clusters if len(c.unassigned_exits) >= 3]
-    singletons = completion_sample(singletons)
-    pairs = completion_sample(pairs)
-    multiples = completion_sample(multiples)
+
+    if COMPLETION < 1.0:
+        singletons = completion_sample(singletons)
+        pairs = completion_sample(pairs)
+        multiples = completion_sample(multiples)
+
+    AncientCave.class_reseed("selection")
 
     checkpoint_dict = defaultdict(set)
     num_segments = len(checkpoints)-1
@@ -1514,6 +1543,8 @@ def generate_cave():
             raise Exception("Unable to select appropriate exits.")
         candidates = temp
         checkpoint_dict[tc] |= set(chosens)
+
+    AncientCave.class_reseed("connections")
 
     print "Connecting clusters..."
     NONLINEARITY = get_random_degree()
@@ -1562,6 +1593,8 @@ def generate_cave():
             done.append(bb)
         assert cp2 in done
 
+    AncientCave.class_reseed("filling")
+
     total_unassigned_exits = []
     for c in checkpoints + pairs + multiples:
         assert not (set(total_unassigned_exits) & set(c.unassigned_exits))
@@ -1585,18 +1618,12 @@ def generate_cave():
         Cluster.assign_exit_pair(s, chosen)
         total_unassigned_exits.remove(chosen)
 
+    AncientCave.class_reseed("bosses")
+    replace_sanctuary_bosses()
+
     assert not total_unassigned_exits
 
     Cluster.rank_clusters()
-
-    for cp in checkpoints:
-        clusters = sorted(checkpoint_dict[cp])
-        unassigned_exits = []
-        for c in clusters:
-            uxs = c.unassigned_exits
-            random.shuffle(uxs)
-            unassigned_exits.extend(uxs)
-        assert not unassigned_exits
 
     print int(Cluster.goal.rank), "doors to the finish"
     for clu in Cluster.ranked_clusters:
@@ -1652,6 +1679,38 @@ def generate_cave():
     f.close()
     for s in Script._all_scripts:
         s.fulfill_scheduled_write()
+
+
+def replace_sanctuary_bosses():
+    sbosses = [mso for mso in MapSpriteObject.every
+               if mso.index in SANCTUARY_BOSS_INDEXES]
+    sclusters = [mso.nearest_cluster for mso in sbosses]
+    sclusters = sorted(sclusters, key=lambda sc: sc.rank)
+
+    print "Finding bosses..."
+    bosses = set([])
+    for mso in MapSpriteObject.every:
+        if mso.script is None:
+            continue
+        es = mso.script.enemy_encounters
+        for e in es:
+            bosses.add(e)
+
+    bosses = sorted(bosses,
+                    key=lambda b: (b.rank, random.random(), b.index))
+    chosens = []
+    while len(chosens) < len(sclusters):
+        candidates = [b for b in bosses if b not in chosens]
+        max_index = len(candidates)-1
+        index = random.randint(random.randint(0, max_index), max_index)
+        chosens.append(candidates[index])
+
+    bosses = shuffle_normal(bosses)
+    chosens = sorted(chosens, key=lambda c: bosses.index(c))
+
+    for sc, c in zip(sclusters, chosens):
+        sboss = [s for s in sbosses if s.nearest_cluster is sc][0]
+        sboss.script.replace_sanctuary_boss(c)
 
 
 class EnemyPlaceObject(TableObject):
