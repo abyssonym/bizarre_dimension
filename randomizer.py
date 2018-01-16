@@ -1689,12 +1689,12 @@ def generate_cave():
         Cluster.assign_exit_pair(s, chosen)
         total_unassigned_exits.remove(chosen)
 
+    assert not total_unassigned_exits
+    Cluster.rank_clusters()
+
+    # do AFTER ranking clusters
     AncientCave.class_reseed("bosses")
     replace_sanctuary_bosses()
-
-    assert not total_unassigned_exits
-
-    Cluster.rank_clusters()
 
     print int(Cluster.goal.rank), "doors to the finish"
     for clu in Cluster.ranked_clusters:
