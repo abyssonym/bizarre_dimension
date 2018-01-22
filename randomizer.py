@@ -1814,7 +1814,7 @@ def generate_cave():
         (0x04, 0xA6, 0x01),     # daytime in onett
         (0x04, 0x05, 0x02),     # turn on lights at home
 
-        (0x04, 0x74, 0x01),     # become robots
+        #(0x04, 0x74, 0x01),     # become robots
 
         (0x05, 0x0B, 0x00),     # "enemies won't appear" flag (off)
         (0x1F, 0x11, 0x02),     # recruit paula
@@ -1839,6 +1839,12 @@ def generate_cave():
     exit_mouse.write_script()
 
     print "Sanitizing cave events..."
+    giygas_enter = Script.get_by_pointer(0x9af3a)
+    assert tuple(giygas_enter.lines[0]) == (
+        0x06, 0x49, 0x00, 0x2f, 0x99, 0xc9, 0x00)
+    giygas_enter.lines[0] = (0x04, 0x74, 0x01)
+    giygas_enter.write_script()
+
     #for meo in MapEnemyObject.every:
     #    meo.cave_sanitize_events()
     f = open(path.join(tblpath, "problematic_scripts.txt"))
