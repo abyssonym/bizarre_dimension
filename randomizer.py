@@ -61,7 +61,8 @@ SANCTUARY_ACTIVATION_POINTERS = [
     ]
 
 SANCTUARY_BOSS_INDEXES = [
-    0x19, 0x1f, 0xc0, 0x147, 0x16e, 0x1d0, 0x30b, 0x3a2]  # NOT 0x2b4
+    #0x19, 0x1f, 0xc0, 0x147, 0x16e, 0x1d0, 0x30b, 0x3a2]  # NOT 0x2b4
+    0x147, 0xc0, 0x16e, 0x1f, 0x1d0, 0x30b, 0x19, 0x3a2]  # ordered, NOT 0x2b4
 
 
 def bytes_to_text(s):
@@ -899,6 +900,10 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     def script(self):
         return self.tpt.script
 
+    def set_script(self, other):
+        assert isinstance(other, MapSpriteObject)
+        self.tpt_number = other.old_data["tpt_number"]
+
     @property
     def has_battle_trigger(self):
         return self.script and self.script.has_battle_trigger
@@ -1327,12 +1332,9 @@ class Cluster():
         cropstring = "%sx%s+%s+%s!" % (x2-x1, y2-y1, x1, y1)
         cmd = ["convert", "fullmap.png", "-crop", cropstring]
         if chosen_exit is not None:
-            try:
-                assert chosen_exit in self.exits
-                assert x1 <= chosen_exit.global_x <= x2
-                assert y1 <= chosen_exit.global_y <= y2
-            except:
-                import pdb; pdb.set_trace()
+            assert chosen_exit in self.exits
+            assert x1 <= chosen_exit.global_x <= x2
+            assert y1 <= chosen_exit.global_y <= y2
             x3 = chosen_exit.global_x - x1
             y3 = chosen_exit.global_y - y1
             dimensions = "%s,%s %s,%s" % (x3, y3, x3, y3+5)
@@ -1363,21 +1365,21 @@ class Cluster():
                     new_leafs.append(o)
             leafs = new_leafs
             if goal in shortest_paths:
-                return shortest_paths[goal]
+                return shortest_paths[goal] + [goal]
 
     @classmethod
     def generate_map(cls):
         shortest_path = Cluster.find_shortest_path()
         for (i, c) in enumerate(shortest_path):
             filename = "maps/{0}_{1:0>3}.png".format(get_seed(), i)
-            if (i+1) < len(shortest_path):
+            try:
                 c2 = shortest_path[i+1]
                 for x in c.exits:
                     if c.get_connected_cluster(x) is c2:
                         break
                 else:
                     raise Exception("Break in path??")
-            else:
+            except IndexError:
                 x = None
             c.generate_image(filename, chosen_exit=x)
 
@@ -1842,8 +1844,7 @@ def generate_cave():
 
 
 def replace_sanctuary_bosses():
-    sbosses = [mso for mso in MapSpriteObject.every
-               if mso.index in SANCTUARY_BOSS_INDEXES]
+    sbosses = [MapSpriteObject.get(sbi) for sbi in SANCTUARY_BOSS_INDEXES]
     sclusters = [mso.nearest_cluster for mso in sbosses]
     sclusters = sorted(sclusters, key=lambda sc: sc.rank)
 
@@ -1872,9 +1873,20 @@ def replace_sanctuary_bosses():
     bosses = shuffle_normal(bosses)
     chosens = sorted(chosens, key=lambda c: bosses.index(c))
 
-    for sc, c in zip(sclusters, chosens):
+    done_scripts = set([])
+    for i, (sc, c) in enumerate(zip(sclusters, chosens)):
+        numbered_boss = sbosses[i]
         sboss = [s for s in sbosses if s.nearest_cluster is sc][0]
+        old_script = sboss.script
+        sboss.set_script(numbered_boss)
+        if sboss is not numbered_boss:
+            assert sboss.script is not old_script
+        else:
+            assert sboss.script is old_script
         sboss.script.replace_sanctuary_boss(c)
+        assert sboss.script not in done_scripts
+        done_scripts.add(sboss.script)
+    assert len(done_scripts) == 8
 
 
 class EnemyPlaceObject(TableObject):
