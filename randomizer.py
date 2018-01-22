@@ -925,6 +925,19 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             if self.nearest_exit in c.exits:
                 return c
 
+    @classmethod
+    def mutate_all(cls):
+        cls.class_reseed("mut")
+        objs = list(cls.every)
+        random.shuffle(objs)
+        for o in cls.every:
+            if hasattr(o, "mutated") and o.mutated:
+                continue
+            o.reseed(salt="mut")
+            o.mutate()
+            o.mutate_bits()
+            o.mutated = True
+
     def mutate(self):
         if not self.is_chest:
             return
@@ -939,23 +952,32 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             return
 
         # Ancient Cave
+        if not hasattr(ItemObject, "done_ones"):
+            ItemObject.done_ones = set([])
+
         cave_rank = self.cave_rank
         if cave_rank is None:
             return
 
         if random.random() < (cave_rank ** 2):
             candidates = [i for i in ItemObject.ranked
-                          if i.rank >= 0 and not i.buyable]
+                          if i.rank >= 0 and not i.is_buyable]
         else:
             candidates = [i for i in ItemObject.ranked if i.rank >= 0]
 
         if (random.random()**4) > cave_rank:
-            candidates = [c for c in candidates if c.is_equipment]
-            cave_rank = cave_rank ** 0.75
+            temp = [c for c in candidates if c.is_equipment]
+            if temp:
+                cave_rank = cave_rank ** 0.75
+                candidates = temp
 
+        candidates = [c for c in candidates
+                      if not (c.limit_one and c.index in ItemObject.done_ones)]
         index = int(round(cave_rank * (len(candidates)-1)))
         chosen = candidates[index]
         new_item = chosen.get_similar(candidates=candidates)
+        if new_item.limit_one:
+            ItemObject.done_ones.add(new_item.index)
         self.tpt.argument = new_item.index
 
 
@@ -1897,7 +1919,7 @@ class ItemObject(TableObject):
         return bytes_to_text(self.name_text)
 
     @cached_property
-    def buyable(self):
+    def is_buyable(self):
         for s in ShopObject.every:
             if self.index in s.old_data["item_ids"]:
                 return True
@@ -1908,26 +1930,50 @@ class ItemObject(TableObject):
         return self.item_type in [0x10, 0x11, 0x14, 0x18, 0x1c]
 
     @property
-    def sellable(self):
+    def is_sellable(self):
         return self.old_data["price"] > 0
 
     @property
-    def key_item(self):
+    def is_key_item(self):
         return (self.item_type in [0, 0x34, 0x35, 0x38, 0x3a, 0x3b]
-                and not (self.buyable or self.sellable))
+                and not (self.is_buyable or self.is_sellable))
 
     @property
     def rank(self):
-        if self.key_item:
+        if self.is_key_item:
+            if 'a' in get_flags() and not self.get_bit("nogive"):
+                return 1000001
             return -1
 
-        if not self.buyable and not self.sellable:
+        if not self.is_buyable and not self.is_sellable:
             return 1000000
 
-        if not self.buyable:
+        if not self.is_buyable:
             return 100000 + self.old_data["price"]
 
         return self.old_data["price"]
+
+    @property
+    def limit_one(self):
+        if self.get_bit("one_use"):
+            return False
+
+        if self.price == 0 or self.get_bit("nogive"):
+            return True
+
+        if self.equipable & 0xF:
+            equipnum = sum([self.get_bit(name)
+                            for name in ["ness", "paula", "jeff", "poo"]])
+            assert equipnum > 0
+            if equipnum <= 1:
+                return True
+
+        return False
+
+    def cleanup(self):
+        if 'a' in get_flags() and not (
+                self.is_sellable or self.get_bit("nogive")):
+            self.price = max(self.price, 2)
 
 
 class ShopObject(TableObject):
