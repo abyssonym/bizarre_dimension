@@ -232,9 +232,17 @@ class Script:
         assert self.lines[0][0] == 0x07
         assert self.lines[1][0] == 0x1b
         self.lines = self.lines[2:]
-        self.lines.insert(-1, (0x1F, 0x68))  # exit mouse
+        self.lines.insert(-1, (0x05, 0x0B, 0x00))   # encounters on
+        self.lines.insert(-1, (0x1F, 0x68))         # exit mouse
         assert tuple(self.lines[-1]) == (0x02,)
         self.schedule_for_writing()
+
+    def remove_encounters_off(self):
+        if hasattr(self, "_removed_encounters") and self._removed_encounters:
+            return
+        keys = [(0x04, 0x0b, 0x00),]
+        self.remove_instructions(keys)
+        self._removed_encounters = True
 
     def remove_exit_mouse_store(self):
         if self.is_sanctuary_door:
@@ -435,7 +443,7 @@ class Script:
 
             if length is None or key in [
                     (0x06,), (0x08,), (0x0a,),
-                    (0x1b, 0x02), (0x1b, 0x03), (0x1f, 0x63)]:
+                    (0x1b, 0x02), (0x1b, 0x03), (0x1f, 0x63), (0x1f, 0x66)]:
                 if length is not None:
                     numargs = 1
                 subptrptr = pointer + len(line) - (4*numargs)
@@ -1193,6 +1201,7 @@ class MapEnemyObject(GridMixin, TableObject):
             if script is None:
                 continue
             script.remove_exit_mouse_store()
+            script.remove_encounters_off()
             script.remove_teleports()
             script.remove_party_changes()
 
@@ -1837,7 +1846,8 @@ def generate_cave():
         if tuple(line) == (0x1f, 0x41, 0x05):
             exit_mouse.lines = exit_mouse.lines[i:]
     # TODO: Make exit mouse reuseable?
-    exit_mouse.lines.insert(0, (0x1d, 0x01, 0xff, 0xc5))  # one use only
+    exit_mouse.lines.insert(0, (0x05, 0x0B, 0x00))          # encounters on
+    exit_mouse.lines.insert(0, (0x1d, 0x01, 0xff, 0xc5))    # one use only
     exit_mouse.write_script()
 
     print "Sanitizing cave events..."
@@ -1854,6 +1864,7 @@ def generate_cave():
         pointer = int(line.strip(), 0x10)
         s = Script.get_by_pointer(pointer)
         s.remove_exit_mouse_store()
+        s.remove_encounters_off()
         s.remove_teleports()
         s.remove_party_changes()
     f.close()
