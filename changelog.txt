@@ -4,8 +4,13 @@ v0.1
 -Sanctuary Spots are working now.
 -Many items will now appear only once per dungeon, notably items that can only be equipped by one character.
 -Many items that were unsellable/undroppable now can be.
+-Added various protections against the enemy despawn bug.
 -Ness starts with the Escargo Express phone number memorized.
 -Sanctuary bosses now report their proper order.
 -Some hotspots and other events have been modified, such as Poo leaving after the Pyramid.
 -NPCs that start battles should never appear in the first zone.
 -Various fixes to routing.
+
+NOT FIXED
+-The Lost World "geyser softlock". I'm not sure what caused this.
+-Fadeouts after Hotels. This is still pretty low priority in terms of necessity vs. effort required. Use the Sound Stone to turn the lights back on.
