@@ -38,6 +38,28 @@ SANCTUARY_BOSS_POINTERS = [
     0x6843a,
     ]
 
+SANCTUARY_HOTSPOT_POINTERS = [
+    0x7becf,
+    0x7bf95,
+    0x7c06e,
+    0x7c12a,
+    0x7c208,
+    0x7c2c6,
+    0x7c39b,
+    0x7c479,
+    ]
+
+SANCTUARY_ACTIVATION_POINTERS = [
+    0x9b08d,
+    0x9afe1,
+    0x9afb6,
+    0x9af8b,
+    0x9b00c,
+    0x9b037,
+    0x9b062,
+    0x9b0b2,
+    ]
+
 SANCTUARY_BOSS_INDEXES = [
     0x19, 0x1f, 0xc0, 0x147, 0x16e, 0x1d0, 0x30b, 0x3a2]  # NOT 0x2b4
 
@@ -194,6 +216,35 @@ class Script:
                     break
 
         return self.has_battle_trigger
+
+    @property
+    def is_sanctuary_door(self):
+        for line in self.lines:
+            if tuple(line[:3]) == (0x1f, 0x66, 0x01):
+                index = line[3]
+                if index in xrange(0x18, 0x20):
+                    return True
+        return False
+
+    def make_sanctuary_door_always_activate(self):
+        assert self.is_sanctuary_door
+        assert self.lines[0][0] == 0x07
+        assert self.lines[1][0] == 0x1b
+        self.lines = self.lines[2:]
+        self.lines.insert(-1, (0x1F, 0x68))  # exit mouse
+        assert tuple(self.lines[-1]) == (0x02,)
+        self.schedule_for_writing()
+
+    def remove_exit_mouse_store(self):
+        if self.is_sanctuary_door:
+            return
+
+        # NOTE: This only targets 0x9B112, apparently
+        if hasattr(self, "_removed_exit_mouse") and self._removed_exit_mouse:
+            return
+        keys = [(0x1f, 0x68),]
+        self.remove_instructions(keys)
+        self._removed_exit_mouse = True
 
     def remove_teleports(self):
         if hasattr(self, "_removed_teleports") and self._removed_teleports:
@@ -1135,6 +1186,7 @@ class MapEnemyObject(GridMixin, TableObject):
             script = o.script
             if script is None:
                 continue
+            script.remove_exit_mouse_store()
             script.remove_teleports()
             script.remove_party_changes()
 
@@ -1745,21 +1797,34 @@ def generate_cave():
     s = Script(0x5e70b)
     lines = []
     lines += [
-              (0x04, 0x62, 0x00),   # enable home phone
-              (0x04, 0x68, 0x00),   # normal music in onett
-              (0x04, 0xC7, 0x00),   # know dad's phone number
-              (0x04, 0xC8, 0x00),   # know mom's phone number
-              (0x04, 0xC9, 0x00),   # know escargo express phone number
-              (0x04, 0xA6, 0x01),   # daytime in onett
-              (0x04, 0x05, 0x02),   # turn on lights at home
-              (0x05, 0x0B, 0x00),   # "enemies won't appear" flag (off)
-              (0x1F, 0x11, 0x02),   # recruit paula
-              (0x1F, 0x11, 0x03),   # recruit jeff
-              (0x1F, 0x11, 0x04),   # recruit poo
-              (0x1F, 0xB0),         # save the game
-              (0x02,)]
+        (0x04, 0x62, 0x00),     # enable home phone
+        (0x04, 0x68, 0x00),     # normal music in onett
+        (0x04, 0xC7, 0x00),     # know dad's phone number
+        (0x04, 0xC8, 0x00),     # know mom's phone number
+        (0x04, 0xC9, 0x00),     # know escargo express phone number
+        (0x04, 0xA6, 0x01),     # daytime in onett
+        (0x04, 0x05, 0x02),     # turn on lights at home
+        (0x05, 0x0B, 0x00),     # "enemies won't appear" flag (off)
+        (0x1F, 0x11, 0x02),     # recruit paula
+        (0x1F, 0x11, 0x03),     # recruit jeff
+        (0x1F, 0x11, 0x04),     # recruit poo
+        (0x1F, 0x68),           # store exit mouse coordinates
+        (0x1F, 0xB0),           # save the game
+        (0x02,)]
     s.lines = lines
     s.write_script()
+
+    for sap in SANCTUARY_ACTIVATION_POINTERS:
+        script = Script.get_by_pointer(sap)
+        script.make_sanctuary_door_always_activate()
+
+    exit_mouse = Script(0x2f9ef4)
+    for i, line in enumerate(exit_mouse.lines):
+        if tuple(line) == (0x1f, 0x41, 0x05):
+            exit_mouse.lines = exit_mouse.lines[i:]
+    # TODO: Make exit mouse reuseable?
+    exit_mouse.lines.insert(0, (0x1d, 0x01, 0xff, 0xc5))  # one use only
+    exit_mouse.write_script()
 
     print "Sanitizing cave events..."
     #for meo in MapEnemyObject.every:
@@ -1768,6 +1833,7 @@ def generate_cave():
     for line in f:
         pointer = int(line.strip(), 0x10)
         s = Script.get_by_pointer(pointer)
+        s.remove_exit_mouse_store()
         s.remove_teleports()
         s.remove_party_changes()
     f.close()
@@ -2181,6 +2247,7 @@ class InitialStatsObject(TableObject):
                 self.money = 100
                 self.add_item(0xC4)  # sound stone
                 self.add_item(0x11)  # cracked bat
+                self.add_item(0xC5)  # exit mouse
 
         if "easymodo" in get_activated_codes():
             self.level = 99
