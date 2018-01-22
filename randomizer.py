@@ -1749,6 +1749,7 @@ def generate_cave():
               (0x04, 0x68, 0x00),   # normal music in onett
               (0x04, 0xC7, 0x00),   # know dad's phone number
               (0x04, 0xC8, 0x00),   # know mom's phone number
+              (0x04, 0xC9, 0x00),   # know escargo express phone number
               (0x04, 0xA6, 0x01),   # daytime in onett
               (0x04, 0x05, 0x02),   # turn on lights at home
               (0x05, 0x0B, 0x00),   # "enemies won't appear" flag (off)
