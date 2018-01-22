@@ -723,10 +723,11 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             *["%x" % v for v in [self.global_x, self.global_y, self.event_type,
                                  self.event_index, self.enemy_cell.index]])
 
-    def connect_exit(self, other):
-        assert not self.connected
-        if other.connected:
-            assert other.connected is self
+    def connect_exit(self, other, override=False):
+        if not override:
+            assert not self.connected
+            if other.connected:
+                assert other.connected is self
 
         if other is self:
             if self.event.event_flag != 0x8154:
@@ -1789,6 +1790,12 @@ def generate_cave():
             me.connect_exit(me)
             #me.connect_exit(Cluster.home.exits[0])
 
+    if "giygastest" in get_activated_codes():
+        homex = Cluster.home.exits[0]
+        goalx = Cluster.goal.exits[0]
+        homex.connect_exit(goalx, override=True)
+        goalx.connect_exit(homex, override=True)
+
     f = open(get_outfile(), "r+b")
     f.seek(addresses.start_x)
     write_multi(f, 0x1f80, length=2)
@@ -1806,6 +1813,9 @@ def generate_cave():
         (0x04, 0xC9, 0x00),     # know escargo express phone number
         (0x04, 0xA6, 0x01),     # daytime in onett
         (0x04, 0x05, 0x02),     # turn on lights at home
+
+        (0x04, 0x74, 0x01),     # become robots
+
         (0x05, 0x0B, 0x00),     # "enemies won't appear" flag (off)
         (0x1F, 0x11, 0x02),     # recruit paula
         (0x1F, 0x11, 0x03),     # recruit jeff
@@ -2204,6 +2214,13 @@ class EnemyObject(TableObject):
         if 'a' in get_flags():
             self.xp = max(self.xp, 4)
 
+        if 'easymodo' in get_activated_codes():
+            self.hp = 1
+            self.pp = 1
+            self.offense = 1
+            self.speed = 1
+            self.iq = 1
+
 
 class StatGrowthObject(TableObject):
     flag = 'c'
@@ -2280,6 +2297,7 @@ if __name__ == "__main__":
         codes = {
             "easymodo": ["easymodo"],
             "mapper": ["mapper"],
+            "giygastest": ["giygastest"],
         }
         run_interface(ALL_OBJECTS, snes=True, codes=codes)
 
