@@ -1659,8 +1659,9 @@ def generate_cave():
 
     checkpoint_dict = defaultdict(set)
     num_segments = len(checkpoints)-1
-    temp_checkpoints = checkpoints[:num_segments]
+    temp_checkpoints = checkpoints[1:num_segments]
     random.shuffle(temp_checkpoints)
+    temp_checkpoints.insert(0, Cluster.home)
 
     candidates = pairs + multiples
     num_per_segment = len(candidates) / num_segments
@@ -1686,10 +1687,11 @@ def generate_cave():
                 temp_health = sum([len(t.unassigned_exits)-2 for t in temp])
                 threshold = ((num_segments-1)-i) * 3
                 if temp_health >= threshold:
+                    candidates = temp
                     break
         else:
             raise Exception("Unable to select appropriate exits.")
-        candidates = temp
+        assert tc not in checkpoint_dict
         checkpoint_dict[tc] |= set(chosens)
 
     AncientCave.class_reseed("connections")
