@@ -1,0 +1,11 @@
+v0.1
+-Praying at Giygas no longer softlocks.
+-Exit Mice are now functional. They will take you back to the most recent Sanctuary Spot you visited, or home if you have not visited any.
+-Sanctuary Spots are working now.
+-Many items will now appear only once per dungeon, notably items that can only be equipped by one character.
+-Many items that were unsellable/undroppable now can be.
+-Ness starts with the Escargo Express phone number memorized.
+-Sanctuary bosses now report their proper order.
+-Some hotspots and other events have been modified, such as Poo leaving after the Pyramid.
+-NPCs that start battles should never appear in the first zone.
+-Various fixes to routing.
