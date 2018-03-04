@@ -2183,12 +2183,14 @@ class EnemyObject(TableObject):
         "weakness_flash": None,
         "weakness_paralysis": None,
         "weakness_hypnosis": None,
+        "battle_palette": None,
     }
     intershuffle_attributes = [
         "hp", "pp", "xp", "money", "level",
         "offense", "defense", "speed", "guts", "iq", "miss_rate",
         ("drop_item_index", "drop_frequency"), "status",
         "mirror_success_rate",
+        "battle_palette",
         ]
     randomize_attributes = [
         #"order",
@@ -2196,6 +2198,10 @@ class EnemyObject(TableObject):
     shuffle_attributes = [
         #("action1", "action2", "action3", "action4"),
         ]
+
+    def __repr__(self):
+        s = "%s %x %s" % (self.__class__.__name__, self.index, self.name)
+        return s.strip()
 
     @property
     def is_boss(self):
