@@ -1817,6 +1817,7 @@ def generate_cave():
     s = Script(0x5e70b)
     lines = []
     lines += [
+        (0x04, 0x58, 0x00),     # enable Winters phones
         (0x04, 0x62, 0x00),     # enable home phone
         (0x04, 0x68, 0x00),     # normal music in onett
         (0x04, 0xC7, 0x00),     # know dad's phone number
