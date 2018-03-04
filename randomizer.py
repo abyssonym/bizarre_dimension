@@ -241,7 +241,7 @@ class Script:
         if hasattr(self, "_removed_encounters") and self._removed_encounters:
             return
         keys = [(0x04, 0x0b, 0x00),]
-        self.remove_instructions(keys)
+        self.remove_instructions(keys, [])
         self._removed_encounters = True
 
     def remove_exit_mouse_store(self):
@@ -252,7 +252,7 @@ class Script:
         if hasattr(self, "_removed_exit_mouse") and self._removed_exit_mouse:
             return
         keys = [(0x1f, 0x68),]
-        self.remove_instructions(keys)
+        self.remove_instructions(keys, [])
         self._removed_exit_mouse = True
 
     def remove_teleports(self):
@@ -263,7 +263,35 @@ class Script:
             (0x1f, 0x21),
             (0x1f, 0x69),
             ]
-        self.remove_instructions(keys)
+        exceptions = [
+            # All post hotel/sleep/bench teleports. Either they normally
+            # teleport you to the same map, or they have been manually
+            # changed to do so in the TeleportObject cleanup.
+            (0x1f, 0x21, 0x02),
+            (0x1f, 0x21, 0x0b),
+            (0x1f, 0x21, 0x0d),
+            (0x1f, 0x21, 0x0e),
+            (0x1f, 0x21, 0x11),
+            (0x1f, 0x21, 0x13),
+            (0x1f, 0x21, 0x27),
+            (0x1f, 0x21, 0x2b),
+            (0x1f, 0x21, 0x2c),
+            (0x1f, 0x21, 0x2f),
+            (0x1f, 0x21, 0x30),
+            (0x1f, 0x21, 0x31),
+            (0x1f, 0x21, 0x32),
+            (0x1f, 0x21, 0x33),
+            (0x1f, 0x21, 0x34),
+            (0x1f, 0x21, 0x35),
+            (0x1f, 0x21, 0x36),
+            (0x1f, 0x21, 0x37),
+            (0x1f, 0x21, 0x38),
+            (0x1f, 0x21, 0x39),
+            (0x1f, 0x21, 0x3A),
+            (0x1f, 0x21, 0x66),
+            (0x1f, 0x21, 0xA2),
+            ]
+        self.remove_instructions(keys, exceptions)
         self._removed_teleports = True
 
     def remove_party_changes(self):
@@ -273,14 +301,28 @@ class Script:
             (0x1f, 0x11),
             (0x1f, 0x12),
             ]
-        self.remove_instructions(keys)
+        self.remove_instructions(keys, [])
         self._removed_party = True
 
-    def remove_instructions(self, keys):
+    def fix_hotels(self):
+        if hasattr(self, "_fixed_hotels") and self._fixed_hotels:
+            return
+        keys = [
+            (0x04, 0x7f, 0x01), # Flag that indicates you just slept.
+            # Disabling the above flag stops the bug that prevents you from
+            # resleeping at a hotel until you luck into flipping it back off,
+            # but at some hotels it does cause the music to not return.
+            ]
+        self.remove_instructions(keys, [])
+        self._fixed_hotels = True
+
+    def remove_instructions(self, keys, exceptions):
         for s in self.subscript_closure:
             newlines = []
             for line in s.lines:
-                if tuple(line[:2]) in keys:
+                if tuple(line[:2]) in keys and tuple(line[:3]) not in exceptions:
+                    continue
+                if tuple(line[:3]) in keys:
                     continue
                 newlines.append(line)
             if len(newlines) < len(s.lines):
@@ -1204,6 +1246,7 @@ class MapEnemyObject(GridMixin, TableObject):
             script.remove_encounters_off()
             script.remove_teleports()
             script.remove_party_changes()
+            script.fix_hotels()
 
     def randomize(self):
         assert 'a' in get_flags()
@@ -1250,6 +1293,35 @@ class MapMusicObject(GridMixin, TableObject):
     rows = 80
     columns = 32
 
+class TeleportObject(TableObject):
+    flag = 'a'
+
+    def cleanup(self):
+        assert 'a' in get_flags()
+        if self.index == 0x02: # Fourside hotel
+            self.x = 748
+            self.y = 764
+        if self.index == 0x0B: # Onett hotel
+            self.x = 1004
+            self.y = 188
+        if self.index == 0x11: # Threed hotel
+            self.x = 842
+            self.y = 1164
+        if self.index == 0x13: # Twoson hotel
+            self.x = 948
+            self.y = 908
+        if self.index == 0x27: # Happy Happy hotel
+            self.x = 879
+            self.y = 206
+        if self.index == 0x32: # Tenda hotel
+            self.x = 55
+            self.y = 18
+        if self.index == 0x0E: # Summers hotel
+            self.x = 838
+            self.y = 1182
+        if self.index == 0xA2: # Moonside hotel
+            self.x = 817
+            self.y = 733
 
 class ZoneMixin(GridMixin):
     rows = 40
@@ -1868,6 +1940,7 @@ def generate_cave():
         s.remove_encounters_off()
         s.remove_teleports()
         s.remove_party_changes()
+        s.fix_hotels()
     f.close()
     for s in Script._all_scripts:
         s.fulfill_scheduled_write()
