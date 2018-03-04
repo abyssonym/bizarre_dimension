@@ -21,7 +21,7 @@ TEXT_MAPPING = {}
 
 text_map_filename = path.join(tblpath, "text_mapping.txt")
 for line in open(text_map_filename):
-    line = line.strip("\n")
+    line = line.strip("\n").strip("\r")
     code, text = line.split("=", 1)
     TEXT_MAPPING[int(code, 0x10)] = text
 TEXT_MAPPING[0] = None
