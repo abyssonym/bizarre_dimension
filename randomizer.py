@@ -1890,7 +1890,7 @@ def replace_sanctuary_bosses():
     bosses = sorted(bosses,
                     key=lambda b: (b.rank, random.random(), b.index))
 
-    BANNED = [0x1ce]  # clumsy robot
+    BANNED = [0x1ce, 0x1c8]  # clumsy robot and master belch
     bosses = [b for b in bosses if b.index not in BANNED]
 
     chosens = []
