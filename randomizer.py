@@ -2208,6 +2208,33 @@ class ShopObject(TableObject):
         self.item_ids = new_item_ids
 
 
+class BgDataObject(TableObject):
+    flag = 'b'
+    flag_description = "backgrounds"
+
+    def mutate(self):
+        matching_depths = [b for b in BgDataObject.every if b.color_depth == self.color_depth]
+        source = random.choice(matching_depths)
+        self.palette = source.old_data["palette"]
+        self.palette_cycle = source.old_data["palette_cycle"]
+        self.palette_cycle_1_begin = source.old_data["palette_cycle_1_begin"]
+        self.palette_cycle_1_end = source.old_data["palette_cycle_1_end"]
+        self.palette_cycle_2_begin = source.old_data["palette_cycle_2_begin"]
+        self.palette_cycle_2_end = source.old_data["palette_cycle_2_end"]
+        self.palette_changing_speed = source.old_data["palette_changing_speed"]
+
+        source = random.choice(BgDataObject.every)
+        self.scrolling_movement_1 = source.old_data["scrolling_movement_1"]
+        self.scrolling_movement_2 = source.old_data["scrolling_movement_2"]
+        self.scrolling_movement_3 = source.old_data["scrolling_movement_3"]
+        self.scrolling_movement_4 = source.old_data["scrolling_movement_4"]
+
+        source = random.choice(BgDataObject.every)
+        self.distortion_1 = source.old_data["distortion_1"]
+        self.distortion_2 = source.old_data["distortion_2"]
+        self.distortion_3 = source.old_data["distortion_3"]
+        self.distortion_4 = source.old_data["distortion_4"]
+
 class ExperienceObject(TableObject):
     def cleanup(self):
         if 'a' in get_flags():
