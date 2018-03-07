@@ -23,6 +23,7 @@ MapMusicObject      map_music_table.txt         1cd637      2560
 $start_y            1fe9b
 $start_x            1fe9e
 .patch              show_sprites_no_intro.txt
+.option             run_button_patch.txt
 
 # full map size: 320 rows of 256 1x1 blocks (256x320)
 # events: 40 rows of 32 8x8 blocks
