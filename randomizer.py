@@ -1148,6 +1148,48 @@ class TPTObject(TableObject):
         self.sprite = random.choice(candidates).index
 
 
+class PcGfxObject(TableObject):
+    flag = 'p'
+    flag_description = 'pc sprites'
+    
+    @classmethod
+    def mutate_all(cls):
+        cls.class_reseed("mut")
+        # Most values from original EarthBound Reshuffler
+        # Table order: 0 1 2 3 5 6 4
+        potential_pcs = [
+            [1, 8, 17, 21, 5, 27, 34, 16, 1, 453],
+            [27, 34, 27, 27, 27, 1, 8, 16, 1, 453],
+            [2, 9, 18, 22, 25, 28, 34, 393, 2, 454],
+            [3, 10, 19, 23, 25, 29, 34, 394, 3, 3],
+            [4, 11, 20, 24, 25, 30, 34, 295, 4, 362],
+            [5, 457, 5, 5, 5, 27, 34, 457, 5, 453],
+            [6, 8, 6, 6, 5, 27, 34, 16, 6, 453],
+            [25, 26, 25, 25, 25, 29, 34, 26, 25, 25],
+            [39, 8, 39, 39, 25, 35, 34, 39, 39, 39],
+            [40, 8, 42, 43, 25, 399, 34, 359, 359],
+            [44, 10, 44, 44, 458, 29, 34, 394, 48, 44],
+            [45, 10, 45, 45, 25, 29, 34, 394, 45, 382],
+            [46, 8, 47, 47, 25, 35, 34, 46, 46, 46],
+            [51, 8, 51, 51, 51, 35, 34, 51, 51, 51],
+            [149, 8, 149, 149, 25, 31, 34, 149, 149, 149],
+            [150, 8, 150, 150, 25, 32, 34, 150, 150, 150],
+            [182, 10, 182, 182, 25, 29, 34, 357, 182, 182],
+            [435, 8, 435, 435, 25, 27, 34, 435, 435, 435]]
+        new_pcs = random.sample(potential_pcs, 4)
+
+        for index in [0, 1, 2, 3]: # Only randomize 4 main PCs
+            o = cls.get(index)
+            new_pc = new_pcs[index]
+            o.default   = new_pc[0]
+            o.dead      = new_pc[1]
+            o.ladder    = new_pc[2]
+            o.rope      = new_pc[3]
+            o.tiny      = new_pc[5]
+            o.tiny_dead = new_pc[6]
+            o.robot     = new_pc[4]
+
+
 class MapEnemyObject(GridMixin, TableObject):
     flag = 'a'
 
