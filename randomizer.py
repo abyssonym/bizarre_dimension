@@ -1088,7 +1088,35 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         self.tpt.argument = new_item.index
 
 
+class SpriteGroupObject(GetByPointerMixin, TableObject):
+    def __repr__(self):
+        s = "{0:0>4} {1:0>4} {2:0>2} {3:0>2} {4:0>2} ({5:0>2} {6:0>2}) ({7:0>2} {8:0>2}) {9:0>2}".format(*
+            ["%x" % v for v in
+             [self.index, self.pointer, self.height, self.width, self.size, self.collision_ew_h, self.collision_ew_w, self.collision_ns_h, self.collision_ns_w, self.sprite_count]])
+        return s
+
+    
+    @property
+    def sprite_count(self):
+        if self.index == 463:
+            return 8
+        raw_size = SpriteGroupObject.get(self.index + 1).pointer - self.pointer
+        return max(0, (raw_size - 9) / 2)
+
+    def valid_swap(self, other, exclusions):
+        if self.index in exclusions or other.index in exclusions:
+            return False
+        return (self.sprite_count == other.sprite_count
+            and self.collision_ns_w == other.collision_ns_w
+            and self.collision_ns_h == other.collision_ns_h
+            and self.collision_ew_w == other.collision_ew_w
+            and self.collision_ew_h == other.collision_ew_h)
+
+
 class TPTObject(TableObject):
+    flag = 'n'
+    flag_description = 'npc sprites'
+
     @property
     def is_chest(self):
         return self.tpt_type == 2
@@ -1106,6 +1134,18 @@ class TPTObject(TableObject):
             return None
         assert pointer & 0xFFC00000 == 0xC00000
         return Script.get_by_pointer(pointer & 0x3FFFFF)
+
+    def mutate(self):
+        sprite_exclusions = [0, 106, 195, 200, 247, 295, 314, 316, 322, 368,
+            369, 371, 373, 374, 375, 376, 381, 410, 420, 428, 430, 431, 439,
+            440, 441, 456, 462, 463]
+
+        if self.sprite in sprite_exclusions:
+            return
+
+        current_sprite = SpriteGroupObject.get(self.sprite)
+        candidates = [sg for sg in SpriteGroupObject.every if current_sprite.valid_swap(sg, sprite_exclusions)]
+        self.sprite = random.choice(candidates).index
 
 
 class MapEnemyObject(GridMixin, TableObject):

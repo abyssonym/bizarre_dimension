@@ -4,6 +4,7 @@ ZoneSpriteObject    zone_event_table.txt        zone_sprite_pointers.txt
 MapEventObject      map_event_table.txt         map_event_pointers.txt
 MapSpriteObject     map_sprite_table.txt        map_sprite_pointers.txt
 EventObject         event_table.txt             event_pointers.txt
+SpriteGroupObject   sprite_group_table.txt      sprite_group_pointers.txt
 BgDataObject        bg_data_table.txt           adca1       327
 TPTObject           tpt_table.txt               f8985       1584
 MapEnemyObject      map_enemy_table.txt         101880      20480
