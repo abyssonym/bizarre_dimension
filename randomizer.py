@@ -2373,7 +2373,7 @@ class EnemyObject(TableObject):
         "battle_palette": None,
     }
     intershuffle_attributes = [
-        "hp", "pp", "xp", "money", "level",
+        "hp", "xp", "money", "level",
         "offense", "defense", "speed", "guts", "iq", "miss_rate",
         ("drop_item_index", "drop_frequency"), "status",
         "mirror_success_rate",
