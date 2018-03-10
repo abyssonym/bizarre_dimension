@@ -1136,11 +1136,16 @@ class TPTObject(TableObject):
         return Script.get_by_pointer(pointer & 0x3FFFFF)
 
     def mutate(self):
-        sprite_exclusions = [0, 106, 195, 200, 247, 295, 314, 316, 322, 368,
+        chests = [33, 195, 214, 233, 262, 322, 408]
+        sprite_exclusions = [0, 106, 200, 247, 295, 314, 316, 368,
             369, 371, 373, 374, 375, 376, 381, 410, 420, 428, 430, 431, 439,
             440, 441, 456, 462, 463]
 
         if self.sprite in sprite_exclusions:
+            return
+
+        if self.sprite in chests:
+            self.sprite = random.choice(chests)
             return
 
         current_sprite = SpriteGroupObject.get(self.sprite)
