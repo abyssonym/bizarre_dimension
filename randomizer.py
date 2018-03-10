@@ -13,7 +13,7 @@ from time import time, sleep
 from collections import Counter
 
 
-VERSION = 3
+VERSION = 4
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
