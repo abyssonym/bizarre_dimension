@@ -1,5 +1,8 @@
 .vscode/
 maps/
 working/
+build/
+dist/
 fullmap.png
 *.smc
+*.spec
