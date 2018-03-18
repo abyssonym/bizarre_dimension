@@ -290,6 +290,7 @@ class Script:
             (0x1f, 0x21, 0x3A),
             (0x1f, 0x21, 0x66),
             (0x1f, 0x21, 0xA2),
+            (0x1f, 0x21, 0xC4),
             ]
         self.remove_instructions(keys, exceptions)
         self._removed_teleports = True
@@ -312,6 +313,7 @@ class Script:
             # Disabling the above flag stops the bug that prevents you from
             # resleeping at a hotel until you luck into flipping it back off,
             # but at some hotels it does cause the music to not return.
+            (0x04, 0x02, 0x02), # Flag that indicates you just slept at home.
             ]
         self.remove_instructions(keys, [])
         self._fixed_hotels = True
@@ -1409,6 +1411,9 @@ class TeleportObject(TableObject):
         if self.index == 0xA2: # Moonside hotel
             self.x = 817
             self.y = 733
+        if self.index == 0xC4: # Ness's house
+            self.x = 954
+            self.y = 45
 
 class ZoneMixin(GridMixin):
     rows = 40
@@ -1984,6 +1989,8 @@ def generate_cave():
         (0x04, 0xC9, 0x00),     # know escargo express phone number
         (0x04, 0xA6, 0x01),     # daytime in onett
         (0x04, 0x05, 0x02),     # turn on lights at home
+        (0x04, 0xD5, 0x01),     # Mom heal part 1
+        (0x04, 0x5E, 0x00),     # Mom heal part 2
 
         #(0x04, 0x74, 0x01),     # become robots
 
@@ -2016,6 +2023,12 @@ def generate_cave():
         0x06, 0x49, 0x00, 0x2f, 0x99, 0xc9, 0x00)
     giygas_enter.lines[0] = (0x04, 0x74, 0x01)
     giygas_enter.write_script()
+    
+    mom_talk = Script.get_by_pointer(0x750e3)
+    assert tuple(mom_talk.lines[0]) == (
+        0x06, 0x49, 0x00, 0x7d, 0x54, 0xc7, 0x00)
+    mom_talk.lines[0] = (0x0a, 0x24, 0x51, 0xc7)
+    mom_talk.write_script()
 
     #for meo in MapEnemyObject.every:
     #    meo.cave_sanitize_events()
