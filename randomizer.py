@@ -1141,13 +1141,15 @@ class TPTObject(TableObject):
         chests = [33, 195, 214, 233, 262, 322, 408]
         sprite_exclusions = [0, 106, 200, 247, 295, 314, 316, 368,
             369, 371, 373, 374, 375, 376, 381, 410, 420, 428, 430, 431, 439,
-            440, 441, 456, 462, 463]
-
-        if self.sprite in sprite_exclusions:
-            return
+            440, 441, 456, 462, 463,
+            # Also exclude all chest sprites
+            33, 195, 214, 233, 262, 322, 408]
 
         if self.sprite in chests:
             self.sprite = random.choice(chests)
+            return
+
+        if self.sprite in sprite_exclusions:
             return
 
         current_sprite = SpriteGroupObject.get(self.sprite)
