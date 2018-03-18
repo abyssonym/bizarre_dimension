@@ -1,4 +1,34 @@
-v0.1
+LATEST
+v5
+-"Help" on ATM Card displays randomizer version info, seed, flags chosen.
+-Mom's state set to heal you as normal.
+-Phone in Ness's house no longer removes existing phone numbers.
+-Non-gift-box NPCs no longer receive gift-box sprites.
+-Chaos Theater show skipped if 'a' and 'p' flags selected due to panning bug.
+
+KNOWN ISSUES
+-The Lost World "geyser softlock". I'm not sure what caused this.
+-More instances of an equippable item than can be used can be generated.
+-Possible non-Euclidian room layouts at Electro Specter (and possibly Plague Rat of Doom).
+-Possible bug with dying at Giygas.
+
+OLDER
+v4
+-Topolla Theater routing bug fixed.
+
+v3
+-NPC Sprite Swap and PC Sprite Swap flags added.
+-Run button optional patch added.
+-Enemy PP removed from intershuffle (fewer enemies will have no PP for their PP attacks).
+
+v2
+-Battle backgrounds randomized.
+-Enemy battle sprite pallettes randomized.
+-Hotels fixed.
+-Phones in Winters locations enabled.
+-Belch removed from Sanctuary Spot boss possibilities.
+
+v1
 -Praying at Giygas no longer softlocks.
 -Exit Mice are now functional. They will take you back to the most recent Sanctuary Spot you visited, or home if you have not visited any.
 -Sanctuary Spots are working now.
@@ -10,7 +40,3 @@ v0.1
 -Some hotspots and other events have been modified, such as Poo leaving after the Pyramid.
 -NPCs that start battles should never appear in the first zone.
 -Various fixes to routing.
-
-NOT FIXED
--The Lost World "geyser softlock". I'm not sure what caused this.
--Fadeouts after Hotels. This is still pretty low priority in terms of necessity vs. effort required. Use the Sound Stone to turn the lights back on.
