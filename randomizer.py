@@ -1388,34 +1388,34 @@ class TeleportObject(TableObject):
     flag = 'a'
 
     def cleanup(self):
-        assert 'a' in get_flags()
-        if self.index == 0x02: # Fourside hotel
-            self.x = 748
-            self.y = 764
-        if self.index == 0x0B: # Onett hotel
-            self.x = 1004
-            self.y = 188
-        if self.index == 0x11: # Threed hotel
-            self.x = 842
-            self.y = 1164
-        if self.index == 0x13: # Twoson hotel
-            self.x = 948
-            self.y = 908
-        if self.index == 0x27: # Happy Happy hotel
-            self.x = 879
-            self.y = 206
-        if self.index == 0x32: # Tenda hotel
-            self.x = 55
-            self.y = 18
-        if self.index == 0x0E: # Summers hotel
-            self.x = 838
-            self.y = 1182
-        if self.index == 0xA2: # Moonside hotel
-            self.x = 817
-            self.y = 733
-        if self.index == 0xC4: # Ness's house
-            self.x = 954
-            self.y = 45
+        if 'a' in get_flags():
+            if self.index == 0x02: # Fourside hotel
+                self.x = 748
+                self.y = 764
+            if self.index == 0x0B: # Onett hotel
+                self.x = 1004
+                self.y = 188
+            if self.index == 0x11: # Threed hotel
+                self.x = 842
+                self.y = 1164
+            if self.index == 0x13: # Twoson hotel
+                self.x = 948
+                self.y = 908
+            if self.index == 0x27: # Happy Happy hotel
+                self.x = 879
+                self.y = 206
+            if self.index == 0x32: # Tenda hotel
+                self.x = 55
+                self.y = 18
+            if self.index == 0x0E: # Summers hotel
+                self.x = 838
+                self.y = 1182
+            if self.index == 0xA2: # Moonside hotel
+                self.x = 817
+                self.y = 733
+            if self.index == 0xC4: # Ness's house
+                self.x = 954
+                self.y = 45
 
 class ZoneMixin(GridMixin):
     rows = 40
