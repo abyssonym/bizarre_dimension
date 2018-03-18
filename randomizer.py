@@ -17,6 +17,7 @@ VERSION = 4
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
+TEXT_INVERSE_MAPPING = {}
 
 
 text_map_filename = path.join(tblpath, "text_mapping.txt")
@@ -24,6 +25,7 @@ for line in open(text_map_filename):
     line = line.strip("\n").strip("\r")
     code, text = line.split("=", 1)
     TEXT_MAPPING[int(code, 0x10)] = text
+    TEXT_INVERSE_MAPPING[text] = int(code, 0x10)
 TEXT_MAPPING[0] = None
 
 
@@ -84,6 +86,15 @@ def bytes_to_text(s):
         result += text
         s = s[len(key):]
     return result
+
+def text_to_bytes(s):
+    # Ignores compression possibilities completely but sufficient for now.
+    result = []
+    try:
+        result = map(lambda x: TEXT_INVERSE_MAPPING[x], list(s))
+    except KeyError:
+        print "String not able to be mapped: %s" % s
+    return tuple(result)
 
 
 def load_areas(area_filename=None):
@@ -291,6 +302,7 @@ class Script:
             (0x1f, 0x21, 0x66),
             (0x1f, 0x21, 0xA2),
             (0x1f, 0x21, 0xC4),
+            (0x1f, 0x21, 0xE9), # Unused value - for testing
             ]
         self.remove_instructions(keys, exceptions)
         self._removed_teleports = True
@@ -711,6 +723,29 @@ class AncientCave(TableObject):
         AncientCave.class_reseed("ancient")
         generate_cave()
         super(AncientCave, cls).full_randomize()
+
+    @classmethod
+    def full_cleanup(cls):
+        # Always give ATM Card help text, regardless of flags
+        atm_help = Script.get_by_pointer(0x5566b) # Relocating to 2e9300
+        lines = [(0x0a, 0x00, 0x93, 0xee, 0x00)]
+        atm_help.lines = lines
+        atm_help.write_script()
+
+        lines = []
+        lines += [
+            (0x01, ),
+            text_to_bytes("@EarthBound Ancient Cave randomizer version %s." % VERSION),
+            (0x03, 0x00),
+            text_to_bytes("@Seed: %s" % get_seed()),
+            (0x03, 0x00),
+            text_to_bytes("@Flags: %s" % get_flags()),
+            #(0x1f, 0x21, 0xe9), # Teleport to test location 
+            (0x13, 0x02)]
+        atm_help.lines = lines
+        atm_help.write_script(0x2e9300)
+
+        super(AncientCave, cls).full_cleanup()
 
 
 class EventObject(GetByPointerMixin, TableObject):
@@ -1420,6 +1455,9 @@ class TeleportObject(TableObject):
             if self.index == 0xC4: # Ness's house
                 self.x = 954
                 self.y = 45
+            if self.index == 0xE9: # Unused value - for testing
+                self.x = 864
+                self.y = 1078
 
 class ZoneMixin(GridMixin):
     rows = 40
