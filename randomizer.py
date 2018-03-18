@@ -2062,17 +2062,28 @@ def generate_cave():
     exit_mouse.write_script()
 
     print "Sanitizing cave events..."
+    # Special Events
+    # Giygas - flags necessary to be set upon entering for battle to function
     giygas_enter = Script.get_by_pointer(0x9af3a)
     assert tuple(giygas_enter.lines[0]) == (
         0x06, 0x49, 0x00, 0x2f, 0x99, 0xc9, 0x00)
     giygas_enter.lines[0] = (0x04, 0x74, 0x01)
     giygas_enter.write_script()
     
+    # Mom in Ness's house - manual changes to get to heal state
     mom_talk = Script.get_by_pointer(0x750e3)
     assert tuple(mom_talk.lines[0]) == (
         0x06, 0x49, 0x00, 0x7d, 0x54, 0xc7, 0x00)
-    mom_talk.lines[0] = (0x0a, 0x24, 0x51, 0xc7)
+    mom_talk.lines[0] = (0x0a, 0x24, 0x51, 0xc7, 0x00)
     mom_talk.write_script()
+
+    # Chaos Theater - remove show, due to panning bug when PC sprites randomized
+    if 'p' in get_flags():
+        chaos_show_trigger = Script.get_by_pointer(0x99fe0)
+        assert tuple(chaos_show_trigger.lines[0]) == (
+            0x06, 0x3f, 0x01, 0x2f, 0x99, 0xc9, 0x00)
+        chaos_show_trigger.lines[0] = (0x0a, 0x2f, 0x99, 0xc9, 0x00)
+        chaos_show_trigger.write_script()
 
     #for meo in MapEnemyObject.every:
     #    meo.cave_sanitize_events()
