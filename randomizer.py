@@ -1155,6 +1155,10 @@ class TPTObject(TableObject):
         current_sprite = SpriteGroupObject.get(self.sprite)
         candidates = [sg for sg in SpriteGroupObject.every if current_sprite.valid_swap(sg, sprite_exclusions)]
         self.sprite = random.choice(candidates).index
+    
+    def cleanup(self):
+        if 'a' in get_flags() and self.address == 0xc75909:
+            self.address = 0xc68017 # Make home phone a normal phone
 
 
 class PcGfxObject(TableObject):
