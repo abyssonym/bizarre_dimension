@@ -2189,6 +2189,12 @@ def generate_cave():
     Cluster.mark_shortest_path()
     spoiler_file = open((get_outfile()[:-4] + ".spoiler.json"), "w")
     spoiler_object = {
+        "info": {
+            "version": VERSION,
+            "seed": get_seed(),
+            "flags": get_flags(),
+            "timestamp": int(time() * 1000)
+        },
         "clusters": map(lambda clu: clu.serialize(), Cluster.generate_clusters())
     }
     json.dump(spoiler_object, spoiler_file)
