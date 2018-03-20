@@ -11,9 +11,10 @@ from collections import defaultdict
 from os import path
 from time import time, sleep
 from collections import Counter
+import json
 
 
-VERSION = 5
+VERSION = 6
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -810,6 +811,25 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             *["%x" % v for v in [self.global_x, self.global_y, self.event_type,
                                  self.event_index, self.enemy_cell.index]])
 
+    def door_description(self):
+        if not self.is_exit:
+            return ("Enemy Cell: %4x Loc: (%4d, %4d) NON-DOOR" %
+                (self.enemy_cell.index, self.global_x, self.global_y))
+        return ("Enemy Cell: %4x Loc: (%4d, %4d) Dest: (%4d, %4d)" %
+            (self.enemy_cell.index, self.global_x, self.global_y, self.new_event.x * 8, self.new_event.y * 8))
+    
+    def serialize(self):
+        result = {
+            "enemyCell": self.enemy_cell.index,
+            "x": self.global_x,
+            "y": self.global_y,
+            "onShortestPath": self.on_shortest_path
+        }
+        if self.is_exit:
+            result["xDestination"] = self.new_event.x * 8
+            result["yDestination"] = self.new_event.y * 8
+        return result
+
     def connect_exit(self, other, override=False):
         if not override:
             assert not self.connected
@@ -842,11 +862,22 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         if hasattr(self, "_connected"):
             return self._connected
         return False
+    
+    @property
+    def on_shortest_path(self):
+        if hasattr(self, "_on_shortest_path"):
+            return self._on_shortest_path
+        return False
 
     @cached_property
     def event(self):
         return EventObject.get_by_pointer(
             0xF0000 | self.old_data["event_index"])
+
+    @property
+    def new_event(self):
+        return EventObject.get_by_pointer(
+            0xF0000 | self.event_index)
 
     @property
     def script(self):
@@ -1529,6 +1560,12 @@ class Cluster():
         self.exits = []
         self.optional = False
 
+    def __repr__(self):
+        s = "%s %6x - Rank %3d" % (self.__class__.__name__, self.index, self.rank or 0)
+        for o in self.exits:
+            s += "\n- %s" % o.door_description()
+        return s.strip()
+
     def __eq__(self, other):
         return self.index == other.index
 
@@ -1540,6 +1577,27 @@ class Cluster():
             return False
         assert type(self) is type(other)
         return self.rank < other.rank
+
+    def serialize(self):
+        result = {
+            "index": self.index,
+            "rank": self.rank,
+            "onShortestPath": self.on_shortest_path,
+            "explicitBounds": {
+                "x1": min([ec.x_bounds[0] for ec in self.explicit_enemy_cells]),
+                "x2": max([ec.x_bounds[1] for ec in self.explicit_enemy_cells]),
+                "y1": min([ec.y_bounds[0] for ec in self.explicit_enemy_cells]),
+                "y2": max([ec.y_bounds[1] for ec in self.explicit_enemy_cells])
+            },
+            "areaBounds": {
+                "x1": min([ec.x_bounds[0] for ec in self.enemy_cells]),
+                "x2": max([ec.x_bounds[1] for ec in self.enemy_cells]),
+                "y1": min([ec.y_bounds[0] for ec in self.enemy_cells]),
+                "y2": max([ec.y_bounds[1] for ec in self.enemy_cells])
+            },
+            "doors": map(lambda door: door.serialize(), self.exits)
+        }
+        return result
 
     def generate_image(self, filename=None, chosen_exit=None):
         from subprocess import call
@@ -1586,6 +1644,22 @@ class Cluster():
                 return shortest_paths[goal] + [goal]
 
     @classmethod
+    def mark_shortest_path(cls):
+        shortest_path = Cluster.find_shortest_path()
+        for (i, c) in enumerate(shortest_path):
+            c._on_shortest_path = True
+            try:
+                c2 = shortest_path[i+1]
+                for x in c.exits:
+                    if c.get_connected_cluster(x) is c2:
+                        x._on_shortest_path = True
+                        break
+                else:
+                    raise Exception("Break in path??")
+            except IndexError:
+                break
+
+    @classmethod
     def generate_map(cls):
         shortest_path = Cluster.find_shortest_path()
         for (i, c) in enumerate(shortest_path):
@@ -1616,6 +1690,10 @@ class Cluster():
         return self.area.enemy_cells
 
     @property
+    def explicit_enemy_cells(self):
+        return [exit.enemy_cell for exit in self.exits]
+
+    @property
     def map_sprites(self):
         return self.area.map_sprites
 
@@ -1628,6 +1706,12 @@ class Cluster():
         if hasattr(self, "_rank"):
             return self._rank
         return None
+    
+    @property
+    def on_shortest_path(self):
+        if hasattr(self, "_on_shortest_path"):
+            return self._on_shortest_path
+        return False
 
     @classproperty
     def ranked_clusters(self):
@@ -2099,6 +2183,22 @@ def generate_cave():
     f.close()
     for s in Script._all_scripts:
         s.fulfill_scheduled_write()
+
+    # Spoiler / Map data generation
+    print("Making spoiler/map file...")
+    Cluster.mark_shortest_path()
+    spoiler_file = open((get_outfile()[:-4] + ".spoiler.json"), "w")
+    spoiler_object = {
+        "info": {
+            "version": VERSION,
+            "seed": get_seed(),
+            "flags": get_flags(),
+            "timestamp": int(time() * 1000)
+        },
+        "clusters": map(lambda clu: clu.serialize(), Cluster.generate_clusters())
+    }
+    json.dump(spoiler_object, spoiler_file)
+    spoiler_file.close()
 
 
 def replace_sanctuary_bosses():

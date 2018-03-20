@@ -1,10 +1,7 @@
 LATEST
-v5
--"Help" on ATM Card displays randomizer version info, seed, flags chosen.
--Mom's state set to heal you as normal.
--Phone in Ness's house no longer removes existing phone numbers.
--Non-gift-box NPCs no longer receive gift-box sprites.
--Chaos Theater show skipped if 'a' and 'p' flags selected due to panning bug.
+v6
+-Program now outputs a spoiler file in AC mode.
+-Use this file at http://eb.compnode.net/ to view a map of doors and destinations. (More features coming soon.)
 
 KNOWN ISSUES
 -The Lost World "geyser softlock". I'm not sure what caused this.
@@ -13,6 +10,13 @@ KNOWN ISSUES
 -Possible bug with dying at Giygas.
 
 OLDER
+v5
+-"Help" on ATM Card displays randomizer version info, seed, flags chosen.
+-Mom's state set to heal you as normal.
+-Phone in Ness's house no longer removes existing phone numbers.
+-Non-gift-box NPCs no longer receive gift-box sprites.
+-Chaos Theater show skipped if 'a' and 'p' flags selected due to panning bug.
+
 v4
 -Topolla Theater routing bug fixed.
 
