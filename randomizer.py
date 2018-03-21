@@ -2198,23 +2198,6 @@ def generate_cave():
     for s in Script._all_scripts:
         s.fulfill_scheduled_write()
 
-    # Spoiler / Map data generation
-    print("Making spoiler/map file...")
-    Cluster.mark_shortest_path()
-    spoiler_file = open((get_outfile()[:-4] + ".spoiler.json"), "w")
-    spoiler_object = {
-        "info": {
-            "version": VERSION,
-            "seed": get_seed(),
-            "flags": get_flags(),
-            "timestamp": int(time() * 1000)
-        },
-        "clusters": map(lambda clu: clu.serialize(), Cluster.generate_clusters()),
-        "chests": map(lambda chest: chest.serialize(), [m for m in MapSpriteObject.every if m.is_chest]),
-    }
-    json.dump(spoiler_object, spoiler_file)
-    spoiler_file.close()
-
 
 def replace_sanctuary_bosses():
     sbosses = [MapSpriteObject.get(sbi) for sbi in SANCTUARY_BOSS_INDEXES]
@@ -2703,6 +2686,24 @@ if __name__ == "__main__":
 
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)
+
+        # Spoiler / Map data generation
+        print("Making spoiler/map file...")
+        spoiler_file = open((get_outfile()[:-4] + ".spoiler.json"), "w")
+        spoiler_object = {
+            "info": {
+                "version": VERSION,
+                "seed": get_seed(),
+                "flags": get_flags(),
+                "timestamp": int(time() * 1000)
+            },
+            "chests": map(lambda chest: chest.serialize(), [m for m in MapSpriteObject.every if m.is_chest]),
+        }
+        if 'a' in get_flags():
+            Cluster.mark_shortest_path()
+            spoiler_object["clusters"] = map(lambda clu: clu.serialize(), Cluster.generate_clusters()),
+        json.dump(spoiler_object, spoiler_file)
+        spoiler_file.close()
 
         if "mapper" in get_activated_codes():
             Cluster.generate_map()
