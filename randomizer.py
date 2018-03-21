@@ -1011,6 +1011,20 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     def after_order(self):
         return [AncientCave]
 
+    def serialize(self):
+        result = {
+            "x": self.global_x,
+            "y": self.global_y,
+        }
+        if self.is_money:
+            result["money"] = self.money_value
+        if self.is_chest and not self.is_money:
+            i = self.chest_contents
+            result["name"] = i.name
+            result["isEquipment"] = i.is_equipment
+            result["itemType"] = i.item_type
+        return result    
+
     @property
     def tpt(self):
         return TPTObject.get(self.tpt_number)
@@ -2195,7 +2209,8 @@ def generate_cave():
             "flags": get_flags(),
             "timestamp": int(time() * 1000)
         },
-        "clusters": map(lambda clu: clu.serialize(), Cluster.generate_clusters())
+        "clusters": map(lambda clu: clu.serialize(), Cluster.generate_clusters()),
+        "chests": map(lambda chest: chest.serialize(), [m for m in MapSpriteObject.every if m.is_chest]),
     }
     json.dump(spoiler_object, spoiler_file)
     spoiler_file.close()
