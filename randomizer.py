@@ -1023,6 +1023,11 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             result["name"] = i.name
             result["isEquipment"] = i.is_equipment
             result["itemType"] = i.item_type
+        if self.is_sanctuary_boss:
+            other = [m for m in MapSpriteObject.every if m.old_data["tpt_number"] == self.tpt_number]
+            assert len(other) == 1
+            result["bossIndex"] = SANCTUARY_BOSS_INDEXES.index(other[0].index)
+            result["enemyEncounters"] = map(lambda ee: ee.serialize(), self.script.enemy_encounters)
         return result    
 
     @property
@@ -2335,6 +2340,12 @@ class BattleEntryObject(TableObject):
             s += "\n{0:0>2} {1}".format("%x" % a, e)
         return s.strip()
 
+    def serialize(self):
+        result = []
+        for a, e in zip(self.activities, self.enemies):
+            result.append({ "activity": a, "enemy": e.name })
+        return result
+
     def read_data(self, filename, pointer=None):
         super(BattleEntryObject, self).read_data(filename, pointer)
         f = open(filename, "r+b")
@@ -2715,6 +2726,8 @@ if __name__ == "__main__":
         if 'a' in get_flags():
             Cluster.mark_shortest_path()
             spoiler_object["clusters"] = map(lambda clu: clu.serialize(), Cluster.generate_clusters())
+            spoiler_object["bosses"] = map(lambda b: b.serialize(), [mso for mso in MapSpriteObject.every
+               if mso.index in SANCTUARY_BOSS_INDEXES])
         json.dump(spoiler_object, spoiler_file)
         spoiler_file.close()
 
