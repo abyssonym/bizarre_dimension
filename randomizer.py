@@ -2701,7 +2701,7 @@ if __name__ == "__main__":
         }
         if 'a' in get_flags():
             Cluster.mark_shortest_path()
-            spoiler_object["clusters"] = map(lambda clu: clu.serialize(), Cluster.generate_clusters()),
+            spoiler_object["clusters"] = map(lambda clu: clu.serialize(), Cluster.generate_clusters())
         json.dump(spoiler_object, spoiler_file)
         spoiler_file.close()
 
