@@ -1956,6 +1956,19 @@ def generate_cave():
     sclusters = [mso.nearest_cluster for mso in sbosses]
     random.shuffle(sclusters)
 
+    # Remove the middle door from the Electro Specter cluster.
+    # This turns this cluster into a two-exit cluster, where the left exit 
+    # arrives from the middle hole and departs from the left hole.
+    # This prevents non-Euclidian layouts and can guarantee the boss cannot be 
+    # skipped if incoming-outgoing preferences are set on the remaining doors.
+    # This must be done after the above section to find the boss cluster.
+    electro_specter = [c for c in all_clusters if c.index == 0xf2696]
+    assert len(electro_specter) == 1
+    electro_specter = electro_specter[0]
+    bad_exit = [e for e in electro_specter.exits if e.enemy_cell.index == 0x0138]
+    assert len(bad_exit) == 1
+    electro_specter.exits.remove(bad_exit[0])
+
     checkpoints = [Cluster.home] + sclusters + [Cluster.goal]
     for c in checkpoints:
         all_clusters.remove(c)
