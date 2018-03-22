@@ -862,6 +862,18 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         if hasattr(self, "_connected"):
             return self._connected
         return False
+        
+    @property
+    def incoming_exit(self):
+        if hasattr(self, "_incoming_exit"):
+            return self._incoming_exit
+        return False
+        
+    @property
+    def outgoing_exit(self):
+        if hasattr(self, "_outgoing_exit"):
+            return self._outgoing_exit
+        return False
     
     @property
     def on_shortest_path(self):
@@ -1757,6 +1769,16 @@ class Cluster():
         if s.startswith("!"):
             force = True
             s = s[1:]
+            
+        incoming = False
+        if s.startswith("("):
+            incoming = True
+            s = s[1:]
+
+        outgoing = False
+        if s.startswith(")"):
+            outgoing = True
+            s = s[1:]
 
         meid, x, y = map(lambda v: int(v, 0x10), s.split())
         if not force:
@@ -1778,6 +1800,8 @@ class Cluster():
         chosen.force = False
         if force:
             chosen.force = True
+        chosen._incoming_exit = incoming
+        chosen._outgoing_exit = outgoing
 
         self.exits.append(chosen)
         self.exits = sorted(self.exits, key=lambda x: x.pointer)
@@ -1803,6 +1827,22 @@ class Cluster():
             assert x is x.canonical_neighbor
             if x not in Cluster.assign_dict and x not in unassigned:
                 unassigned.append(x)
+        return unassigned
+
+    @property
+    def unassigned_incoming_exits(self):
+        unassigned = self.unassigned_exits
+        incoming = [e for e in unassigned if e.incoming_exit]
+        if len(incoming) > 0:
+            return incoming
+        return unassigned
+
+    @property
+    def unassigned_outgoing_exits(self):
+        unassigned = self.unassigned_exits
+        outgoing = [e for e in unassigned if e.outgoing_exit]
+        if len(outgoing) > 0:
+            return outgoing
         return unassigned
 
     @classmethod
@@ -2049,8 +2089,8 @@ def generate_cave():
         assert bb in candidates
         assert bb in chosens
         assert bb.unassigned_exits
-        a, b = (random.choice(aa.unassigned_exits),
-                random.choice(bb.unassigned_exits))
+        a, b = (random.choice(aa.unassigned_outgoing_exits),
+                random.choice(bb.unassigned_incoming_exits))
         Cluster.assign_exit_pair(a, b)
         assert bb.unassigned_exits
         done = [aa, bb]
@@ -2069,8 +2109,8 @@ def generate_cave():
             assert aa.unassigned_exits
             if len(candidates) == 1 and len(aa.unassigned_exits) == 1 and len(bb.unassigned_exits) == 1:
                 raise Exception("Something weird here.")
-            a, b = (random.choice(aa.unassigned_exits),
-                    random.choice(bb.unassigned_exits))
+            a, b = (random.choice(aa.unassigned_outgoing_exits),
+                    random.choice(bb.unassigned_incoming_exits))
             Cluster.assign_exit_pair(a, b)
             assert aa in done
             done.append(bb)
