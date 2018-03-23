@@ -1039,7 +1039,7 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             other = [m for m in MapSpriteObject.every if m.old_data["tpt_number"] == self.tpt_number]
             assert len(other) == 1
             result["bossIndex"] = SANCTUARY_BOSS_INDEXES.index(other[0].index)
-            result["enemyEncounters"] = map(lambda ee: ee.serialize(), self.script.enemy_encounters)
+            result["enemyEncounters"] = self.script.enemy_encounters
         return result    
 
     @property
@@ -1644,7 +1644,7 @@ class Cluster():
                 "y1": min([ec.y_bounds[0] for ec in self.enemy_cells]),
                 "y2": max([ec.y_bounds[1] for ec in self.enemy_cells])
             },
-            "doors": map(lambda door: door.serialize(), self.exits)
+            "doors": self.exits
         }
         return result
 
@@ -2780,14 +2780,13 @@ if __name__ == "__main__":
                 "flags": get_flags(),
                 "timestamp": int(time() * 1000)
             },
-            "chests": map(lambda chest: chest.serialize(), [m for m in MapSpriteObject.every if m.is_chest]),
+            "chests": [m for m in MapSpriteObject.every if m.is_chest]
         }
         if 'a' in get_flags():
             Cluster.mark_shortest_path()
-            spoiler_object["clusters"] = map(lambda clu: clu.serialize(), Cluster.generate_clusters())
-            spoiler_object["bosses"] = map(lambda b: b.serialize(), [mso for mso in MapSpriteObject.every
-               if mso.index in SANCTUARY_BOSS_INDEXES])
-        json.dump(spoiler_object, spoiler_file)
+            spoiler_object["clusters"] = Cluster.generate_clusters()
+            spoiler_object["bosses"] = [mso for mso in MapSpriteObject.every if mso.index in SANCTUARY_BOSS_INDEXES]
+        json.dump(spoiler_object, spoiler_file, default=(lambda x: x.serialize()))
         spoiler_file.close()
 
         if "mapper" in get_activated_codes():
