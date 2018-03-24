@@ -2815,6 +2815,7 @@ if __name__ == "__main__":
                 "version": VERSION,
                 "seed": get_seed(),
                 "flags": get_flags(),
+                "codes": get_activated_codes(),
                 "timestamp": int(time() * 1000)
             },
             "chests": [m for m in MapSpriteObject.every if m.is_chest]
