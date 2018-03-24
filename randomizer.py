@@ -820,6 +820,7 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     
     def serialize(self):
         result = {
+            "index": self.index,
             "enemyCell": self.enemy_cell.index,
             "x": self.global_x,
             "y": self.global_y,
@@ -1323,6 +1324,17 @@ class MapEnemyObject(GridMixin, TableObject):
 
     rows = 160
     columns = 128
+
+    def serialize(self):
+        result = {
+            "index": self.index,
+            "xBounds": self.x_bounds,
+            "yBounds": self.y_bounds,
+            "caveRank": self.cave_rank,
+            "canonicalExit": self.canonical_exit.index if self.canonical_exit else None,
+            "enemyGroup": self.enemy_group
+        }
+        return result
 
     def set_area(self, area):
         self._area = area
@@ -2335,6 +2347,29 @@ class EnemyPlaceObject(TableObject):
             for prob, beo in zip(self.odds[i], self.battle_entries[i]):
                 s += "\n  %s %s" % (prob, str(beo).replace("\n", "\n    "))
         return s.strip()
+    
+    def serialize(self):
+        if self.index == 0:
+            return None
+        result = {
+            "index": self.index,
+            "subgroups": []
+        }
+        for i, rate in enumerate(self.sub_group_rates):
+            if rate == 0:
+                continue
+            subgroup = {
+                "subgroup": i,
+                "entries": []
+            }
+            for prob, beo in zip(self.odds[i], self.battle_entries[i]):
+                subgroup["entries"].append({
+                    "probability": prob,
+                    "enemyEncounter": beo
+                })
+            result["subgroups"].append(subgroup)
+        return result
+
 
     def read_data(self, filename, pointer=None):
         super(EnemyPlaceObject, self).read_data(filename, pointer)
@@ -2760,6 +2795,7 @@ if __name__ == "__main__":
             "mapper": ["mapper"],
             "giygastest": ["giygastest"],
             "funsize": ["funsize"],
+            "devmode": ["devmode"]
         }
         run_interface(ALL_OBJECTS, snes=True, codes=codes)
 
@@ -2786,6 +2822,9 @@ if __name__ == "__main__":
             Cluster.mark_shortest_path()
             spoiler_object["clusters"] = Cluster.generate_clusters()
             spoiler_object["bosses"] = [mso for mso in MapSpriteObject.every if mso.index in SANCTUARY_BOSS_INDEXES]
+            if "devmode" in get_activated_codes():
+                # This adds multiple MB to the file and is only useful for developers, so do not generate it by default.
+                spoiler_object["enemies"] = MapEnemyObject.every
         json.dump(spoiler_object, spoiler_file, default=(lambda x: x.serialize()))
         spoiler_file.close()
 
