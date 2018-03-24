@@ -1,4 +1,18 @@
 LATEST
+v8 (in progress)
+-Chests that were not properly randomized in AC mode fixed: 
+--Tracy's room
+--Bracer of kings room
+--Cold remedy room (Giant Step)
+--Bag of dragonite room (Pyramid)
+--Magicant red area
+
+KNOWN ISSUES
+-The Lost World "geyser softlock". I'm not sure what caused this.
+-More instances of an equippable item than can be used can be generated.
+-Possible bug with dying at Giygas.
+
+OLDER
 v7
 -Sanctuary Boss rooms in AC now always go front-to-back as they do in the base game.
 -Non-Euclidian room layouts at Electro Specter no longer happen.
@@ -7,12 +21,6 @@ v7
 -Odd-shaped PCs no longer appear in PC Sprite randomization by default due to graphical glitches.
 -Use the code 'funsize' in your flags to get the odd-shaped PCs back.
 
-KNOWN ISSUES
--The Lost World "geyser softlock". I'm not sure what caused this.
--More instances of an equippable item than can be used can be generated.
--Possible bug with dying at Giygas.
-
-OLDER
 v6
 -Program now outputs a spoiler file in AC mode.
 -Use this file at http://eb.compnode.net/ to view a map of doors and destinations. (More features coming soon.)

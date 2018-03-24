@@ -14,7 +14,7 @@ from collections import Counter
 import json
 
 
-VERSION = 7
+VERSION = 7.1
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
