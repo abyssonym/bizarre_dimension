@@ -1332,7 +1332,8 @@ class MapEnemyObject(GridMixin, TableObject):
             "yBounds": self.y_bounds,
             "caveRank": self.cave_rank,
             "canonicalExit": self.canonical_exit.index if self.canonical_exit else None,
-            "enemyGroup": self.enemy_group
+            "enemyGroup": self.enemy_group,
+            "area": self.area.label
         }
         return result
 
