@@ -1150,10 +1150,13 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             return
 
         if 'a' not in get_flags():
-            if self.is_money:
-                return
             i = self.chest_contents
-            i = i.get_similar()
+            if self.is_money:
+                i = ItemObject.get(0x5a) #Hamburger
+            if 'wildgifts' in get_activated_codes() or random.random() < 0.2:
+                i = random.choice([item for item in ItemObject.every if not item.is_key_item])
+            else:
+                i = i.get_similar()
             assert self.tpt.argument == self.tpt.old_data["argument"]
             self.tpt.argument = i.index
             return
@@ -2796,6 +2799,7 @@ if __name__ == "__main__":
             "mapper": ["mapper"],
             "giygastest": ["giygastest"],
             "funsize": ["funsize"],
+            "wildgifts": ["wildgifts"],
             "devmode": ["devmode"]
         }
         run_interface(ALL_OBJECTS, snes=True, codes=codes)
@@ -2822,11 +2826,12 @@ if __name__ == "__main__":
         }
         if 'a' in get_flags():
             Cluster.mark_shortest_path()
+        if 'a' in get_flags() or "devmode" in get_activated_codes():
             spoiler_object["clusters"] = Cluster.generate_clusters()
             spoiler_object["bosses"] = [mso for mso in MapSpriteObject.every if mso.index in SANCTUARY_BOSS_INDEXES]
-            if "devmode" in get_activated_codes():
-                # This adds multiple MB to the file and is only useful for developers, so do not generate it by default.
-                spoiler_object["enemies"] = MapEnemyObject.every
+        if "devmode" in get_activated_codes():
+            # This adds multiple MB to the file and is only useful for developers, so do not generate it by default.
+            spoiler_object["enemies"] = MapEnemyObject.every
         json.dump(spoiler_object, spoiler_file, default=(lambda x: x.serialize()))
         spoiler_file.close()
 
