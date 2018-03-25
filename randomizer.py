@@ -585,7 +585,7 @@ class Script:
 
     @classmethod
     def get_pretty_line_description(self, line):
-        if line[0] >= 0x20:
+        if line[0] >= 0x20 or line[0] in (0x15, 0x16, 0x17):
             # Plain text
             return values_to_text(line), "Plain Text"
         key = (line[0],)
