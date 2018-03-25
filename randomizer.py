@@ -88,6 +88,27 @@ def bytes_to_text(s):
         s = s[len(key):]
     return result
 
+def value_to_text(value):
+    if value not in TEXT_MAPPING:
+        return None
+    return TEXT_MAPPING[value]
+
+def values_to_text(values):
+    result = ""
+    while values:
+        if len(values) > 1:
+            text = value_to_text(values[0] * 256 + values[1])
+            if text is not None:
+                result += text
+                values = values[2:]
+                continue
+        text = value_to_text(values[0])
+        if text is None:
+            raise Exception("Value %x not valid text." % values[0])
+        result += text
+        values = values[1:]
+    return result
+
 def text_to_bytes(s):
     # Ignores compression possibilities completely but sufficient for now.
     result = []
@@ -448,6 +469,9 @@ class Script:
             instruction, description = line.split(':')
             instruction = instruction.strip()
             description = description.strip()
+            prefix = instruction[:1]
+            safe = (prefix == '!')
+            instruction = instruction[1:]
             try:
                 key = [int(v, 0x10) for v in instruction.split()[:2]]
             except ValueError:
@@ -455,12 +479,12 @@ class Script:
             key = tuple(key)
 
             if key in [(0x09,), (0x1f, 0xc0)]:
-                scriptdict[key] = (instruction, description, None)
+                scriptdict[key] = (instruction, description, None, safe)
                 continue
 
             length = len(instruction.split())
             assert key not in scriptdict
-            scriptdict[key] = (instruction, description, length)
+            scriptdict[key] = (instruction, description, length, safe)
 
         Script._scriptdict = scriptdict
         return Script.scriptdict
@@ -468,25 +492,47 @@ class Script:
     def read_script(self):
         f = open(get_outfile(), "r+b")
         pointer = self.pointer
+        self.swap_safe = True
         self.lines = []
         nesting = 0
+        current_text_line = None
         while True:
             f.seek(pointer)
             key = (ord(f.read(1)),)
+            
+            if key[0] >= 0x20:
+                # Plain text
+                if not current_text_line:
+                    current_text_line = []
+                current_text_line.extend(key)
+                pointer += 1
+                continue
+            
             if key not in self.scriptdict:
                 f.seek(pointer)
                 key = tuple(map(ord, f.read(2)))
             if key in self.scriptdict:
-                instruction, description, length = self.scriptdict[key]
+                instruction, description, length, safe = self.scriptdict[key]
             else:
                 key = (key[0],)
-                instruction, description, length = (
-                    ("%x" % key[0]).upper(), "ERROR", 1)
-                self.scriptdict[key] = (instruction, description, length)
-
+                instruction, description, length, safe = (
+                    ("%x" % key[0]).upper(), "ERROR", 1, False)
+                self.scriptdict[key] = (instruction, description, length, safe)
+            
             if "Display Compressed" in description:
-                description = "ERROR"
-                self.scriptdict[key] = (instruction, description, length)
+                if not current_text_line:
+                    current_text_line = []
+                f.seek(pointer)
+                current_text_line.extend(tuple(map(ord, f.read(length))))
+                pointer += length
+                continue
+                     
+            if current_text_line:
+                self.lines.append(tuple(current_text_line))
+                current_text_line = None
+
+            if safe is False:
+                self.swap_safe = False
 
             if length is None:
                 f.seek(pointer+len(key))
@@ -539,10 +585,13 @@ class Script:
 
     @classmethod
     def get_pretty_line_description(self, line):
+        if line[0] >= 0x20:
+            # Plain text
+            return values_to_text(line), "Plain Text"
         key = (line[0],)
         if key not in self.scriptdict:
             key = tuple(line[:2])
-        instruction, description, length = self.scriptdict[key]
+        instruction, description, length, safe = self.scriptdict[key]
         pretty_line = " ".join(["{0:0>2}".format("%x" % v) for v in line])
         return pretty_line, description
 
