@@ -2357,6 +2357,7 @@ class EnemyPlaceObject(TableObject):
             return None
         result = {
             "index": self.index,
+            "flag": self.event_flag,
             "subgroups": []
         }
         for i, rate in enumerate(self.sub_group_rates):
@@ -2364,6 +2365,7 @@ class EnemyPlaceObject(TableObject):
                 continue
             subgroup = {
                 "subgroup": i,
+                "rate": rate,
                 "entries": []
             }
             for prob, beo in zip(self.odds[i], self.battle_entries[i]):
