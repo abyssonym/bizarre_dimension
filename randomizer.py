@@ -118,6 +118,11 @@ def text_to_bytes(s):
         print "String not able to be mapped: %s" % s
     return tuple(result)
 
+def ccode_call_address(address):
+    return (0x08, address & 0xff, (address & 0xff00) / 0xff,((address + 0xc00000) & 0xff0000) / 0xffff, 0x00)
+
+def ccode_goto_address(address):
+    return (0x0a, address & 0xff, (address & 0xff00) / 0xff,((address + 0xc00000) & 0xff0000) / 0xffff, 0x00)
 
 def load_areas(area_filename=None):
     if area_filename is None:
@@ -189,14 +194,16 @@ class Area:
 
 class Script:
     _all_scripts = []
+    _freespace = (0x1545c0, 0x154fff)
 
     def __init__(self, pointer, endpointer=None):
-        for s in Script._all_scripts:
-            assert s.pointer != pointer
         self.pointer = pointer
         self.endpointer = endpointer
         self.subpointers = set([])
-        self.read_script()
+        if pointer is not None:
+            for s in Script._all_scripts:
+                assert s.pointer != pointer
+            self.read_script()
         Script._all_scripts.append(self)
 
     def __eq__(self, other):
@@ -589,6 +596,18 @@ class Script:
         self.please_write = False
 
     @classmethod
+    def write_new_script(self, lines):
+        new_script = Script(None)
+        new_script.lines = lines
+        if Script._freespace[0] + new_script.length > Script._freespace[1]:
+            raise Exception("No free space for new script.")
+        new_script.pointer = Script._freespace[0]
+        new_script.old_length = new_script.length
+        Script._freespace = (Script._freespace[0] + new_script.length, Script._freespace[1])
+        new_script.write_script()
+        return new_script
+
+    @classmethod
     def get_pretty_line_description(self, line):
         if line[0] >= 0x20 or line[0] in (0x15, 0x16, 0x17):
             # Plain text
@@ -782,13 +801,7 @@ class AncientCave(TableObject):
     @classmethod
     def full_cleanup(cls):
         # Always give ATM Card help text, regardless of flags
-        atm_help = Script.get_by_pointer(0x5566b) # Relocating to 2e9300
-        lines = [(0x0a, 0x00, 0x93, 0xee, 0x00)]
-        atm_help.lines = lines
-        atm_help.write_script()
-
-        lines = []
-        lines += [
+        lines = [
             (0x01, ),
             text_to_bytes("@EarthBound Ancient Cave randomizer version %s." % VERSION),
             (0x03, 0x00),
@@ -797,8 +810,11 @@ class AncientCave(TableObject):
             text_to_bytes("@Flags: %s" % get_flags()),
             #(0x1f, 0x21, 0xe9), # Teleport to test location 
             (0x13, 0x02)]
-        atm_help.lines = lines
-        atm_help.write_script(0x2e9300)
+        new_atm_help = Script.write_new_script(lines)
+
+        old_atm_help = Script.get_by_pointer(0x5566b)
+        old_atm_help.lines = [ccode_goto_address(new_atm_help.pointer)]
+        old_atm_help.write_script()
 
         super(AncientCave, cls).full_cleanup()
 
@@ -831,7 +847,7 @@ class Dialog(TableObject):
 
         for (pokey_script, pre_lines, post_lines), new_script in zip(pokey_scripts, chosen):
             pointer = new_script.pointer
-            call_line = (0x08, pointer & 0xff, (pointer & 0xff00) / 0xff,((pointer + 0xc00000) & 0xff0000) / 0xffff, 0x00)
+            call_line = ccode_call_address(pointer)
             new_lines = pokey_script.lines[0:pre_lines]
             new_lines.append(call_line)
             new_lines.extend(pokey_script.lines[-post_lines:])
