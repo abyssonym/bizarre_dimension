@@ -501,6 +501,30 @@ class Script:
         Script._scriptdict = scriptdict
         return Script.scriptdict
 
+    
+    @classproperty
+    def newlines(self):
+        if hasattr(Script, "_newlines"):
+            return Script._newlines
+
+        newlines = []
+        newitem = []
+        for line in open(path.join(tblpath, "newlines.txt")):
+            line = line.strip()
+            if len(line) == 0:
+                if len(newitem) > 0:
+                    newlines.append(newitem)
+                    newitem = []
+            elif line.startswith("\""):
+                line = line.strip("\"")
+                newitem.append(text_to_bytes(line))
+            else:
+                newitem.append(tuple([int(a, 0x10) for a in line.split()]))
+        if len(newitem) > 0:
+            newlines.append(newitem)
+        Script._newlines = newlines
+        return Script.newlines
+
     def read_script(self):
         f = open(get_outfile(), "r+b")
         pointer = self.pointer
@@ -843,9 +867,14 @@ class Dialog(TableObject):
             (Script.get_by_pointer(0x8ff31), 4, 4)
         ]
         game_scripts = [tpt.script for tpt in TPTObject.every if tpt.script and tpt.script.is_swap_safe]
-        chosen = random.sample(game_scripts, len(pokey_scripts))
+        #candidates = Script.newlines
+        #candidates.extend(random.sample(game_scripts, len(candidates) * 3))
+        candidates = game_scripts
+        chosen = random.sample(candidates, len(pokey_scripts))
 
         for (pokey_script, pre_lines, post_lines), new_script in zip(pokey_scripts, chosen):
+            if not isinstance(new_script, Script):
+                new_script = Script.write_new_script(new_script)
             pointer = new_script.pointer
             call_line = ccode_call_address(pointer)
             new_lines = pokey_script.lines[0:pre_lines]
