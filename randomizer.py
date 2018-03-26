@@ -816,6 +816,28 @@ class Dialog(TableObject):
         for a, b in zip(candidates, shuffled):
             a.address = b.old_data["address"]
 
+    @classmethod
+    def mutate_all(cls):
+        cls.class_reseed("mut")
+        pokey_scripts = [
+            (Script.get_by_pointer(0x57e1c), 0, 1),
+            (Script.get_by_pointer(0x8fb1b), 5, 4),
+            (Script.get_by_pointer(0x8fc2e), 4, 4),
+            (Script.get_by_pointer(0x8fd11), 5, 4),
+            (Script.get_by_pointer(0x8ff31), 4, 4)
+        ]
+        game_scripts = [tpt.script for tpt in TPTObject.every if tpt.script and tpt.script.is_swap_safe]
+        chosen = random.sample(game_scripts, len(pokey_scripts))
+
+        for (pokey_script, pre_lines, post_lines), new_script in zip(pokey_scripts, chosen):
+            pointer = new_script.pointer
+            call_line = (0x08, pointer & 0xff, (pointer & 0xff00) / 0xff,((pointer + 0xc00000) & 0xff0000) / 0xffff, 0x00)
+            new_lines = pokey_script.lines[0:pre_lines]
+            new_lines.append(call_line)
+            new_lines.extend(pokey_script.lines[-post_lines:])
+            pokey_script.lines = new_lines
+            pokey_script.write_script()
+
 class EventObject(GetByPointerMixin, TableObject):
     def __repr__(self):
         s = "{4:0>5} {0:0>8} {1:0>4} {2:0>4} {3:0>4}".format(*
