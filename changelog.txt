@@ -1,6 +1,6 @@
 LATEST
-v8 (in progress)
--Non-essential dialogs shuffle with the 'd' flag.
+v8
+-Non-essential dialogs shuffle with the 'd' flag (with special surprises possible at Pokey).
 -Chests in non-AC mode have a 20% chance to have any non-key item.
 -Use the code 'wildgifts' in your flags to make that chance 100%.
 -Money chests in non-AC mode randomize to (low-cost) items.
