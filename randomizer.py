@@ -872,9 +872,8 @@ class Dialog(TableObject):
             (Script.get_by_pointer(0x8ff31), 4, 4)
         ]
         game_scripts = [tpt.script for tpt in TPTObject.every if tpt.script and tpt.script.is_swap_safe]
-        #candidates = Script.newlines
-        #candidates.extend(random.sample(game_scripts, len(candidates) * 3))
-        candidates = game_scripts
+        candidates = Script.newlines
+        candidates.extend(random.sample(game_scripts, len(candidates) * 3))
         chosen = random.sample(candidates, len(pokey_scripts))
 
         for (pokey_script, pre_lines, post_lines), new_script in zip(pokey_scripts, chosen):
@@ -2921,6 +2920,8 @@ class InitialStatsObject(TableObject):
 
         if "easymodo" in get_activated_codes():
             self.level = 99
+            self.add_item(0x01)  # franklin badge
+            self.add_item(0x3E)  # star pendant
             if self.index == 0:
                 self.money = 65000
 
