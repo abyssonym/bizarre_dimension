@@ -18,7 +18,7 @@ VERSION = 7.2
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
-TEXT_INVERSE_MAPPING = {}
+TEXT_INVERSE_MAPPING = []
 
 
 text_map_filename = path.join(tblpath, "text_mapping.txt")
@@ -26,7 +26,7 @@ for line in open(text_map_filename):
     line = line.strip("\n").strip("\r")
     code, text = line.split("=", 1)
     TEXT_MAPPING[int(code, 0x10)] = text
-    TEXT_INVERSE_MAPPING[text] = int(code, 0x10)
+    TEXT_INVERSE_MAPPING.append((text, [int(a, 0x10) for a in map(''.join, zip(*[iter(code)]*2))]))
 TEXT_MAPPING[0] = None
 
 
@@ -109,13 +109,18 @@ def values_to_text(values):
         values = values[1:]
     return result
 
-def text_to_bytes(s):
-    # Ignores compression possibilities completely but sufficient for now.
+def text_to_values(s):
     result = []
-    try:
-        result = map(lambda x: TEXT_INVERSE_MAPPING[x], list(s))
-    except KeyError:
-        print "String not able to be mapped: %s" % s
+    while s:
+        found = False
+        for text, codes in TEXT_INVERSE_MAPPING:
+            if s.startswith(text):
+                result.extend(codes)
+                s = s[len(text):]
+                found = True
+                break
+        if found == False:
+            raise Exception("String not able to be mapped: %s" % s)
     return tuple(result)
 
 def ccode_call_address(address):
@@ -517,7 +522,7 @@ class Script:
                     newitem = []
             elif line.startswith("\""):
                 line = line.strip("\"")
-                newitem.append(text_to_bytes(line))
+                newitem.append(text_to_values(line))
             else:
                 newitem.append(tuple([int(a, 0x10) for a in line.split()]))
         if len(newitem) > 0:
@@ -827,11 +832,11 @@ class AncientCave(TableObject):
         # Always give ATM Card help text, regardless of flags
         lines = [
             (0x01, ),
-            text_to_bytes("@EarthBound Ancient Cave randomizer version %s." % VERSION),
+            text_to_values("@EarthBound Ancient Cave randomizer version %s." % VERSION),
             (0x03, 0x00),
-            text_to_bytes("@Seed: %s" % get_seed()),
+            text_to_values("@Seed: %s" % get_seed()),
             (0x03, 0x00),
-            text_to_bytes("@Flags: %s" % get_flags()),
+            text_to_values("@Flags: %s" % get_flags()),
             #(0x1f, 0x21, 0xe9), # Teleport to test location 
             (0x13, 0x02)]
         new_atm_help = Script.write_new_script(lines)
