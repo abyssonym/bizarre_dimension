@@ -14,7 +14,7 @@ from collections import Counter
 import json
 
 
-VERSION = 7.1
+VERSION = 7.2
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -260,6 +260,11 @@ class Script:
                     return True
         return False
 
+    @property
+    def is_swap_safe(self):
+        # Currently, only allow scripts with a depth of 1 to be swapped.
+        return self._swap_safe and all(len(ss.subscripts) == 0 and ss._swap_safe for ss in self.subscripts)
+
     def make_sanctuary_door_always_activate(self):
         assert self.is_sanctuary_door
         assert self.lines[0][0] == 0x07
@@ -492,7 +497,7 @@ class Script:
     def read_script(self):
         f = open(get_outfile(), "r+b")
         pointer = self.pointer
-        self.swap_safe = True
+        self._swap_safe = True
         self.lines = []
         nesting = 0
         current_text_line = None
@@ -532,7 +537,7 @@ class Script:
                 current_text_line = None
 
             if safe is False:
-                self.swap_safe = False
+                self._swap_safe = False
 
             if length is None:
                 f.seek(pointer+len(key))
@@ -797,6 +802,19 @@ class AncientCave(TableObject):
 
         super(AncientCave, cls).full_cleanup()
 
+
+class Dialog(TableObject):
+    flag = 'd'
+    flag_description = "dialogs"
+
+    @classmethod
+    def intershuffle(cls):
+        cls.class_reseed("inter")
+        candidates = [tpt for tpt in TPTObject.every if tpt.script and tpt.script.is_swap_safe]
+        shuffled = shuffle_normal(candidates, random_degree=1)
+
+        for a, b in zip(candidates, shuffled):
+            a.address = b.old_data["address"]
 
 class EventObject(GetByPointerMixin, TableObject):
     def __repr__(self):

@@ -4,13 +4,13 @@
 !03                                                    : Halt Parsing with Prompt - Variable
 _04 XX XX                                              : Toggle On Event Flag
 _05 XX XX                                              : Toggle Off Event Flag
-_06 XX XX YY YY YY YY                                  : Event-Dependent Pointer
-_07 XX XX                                              : Return Event Flag
-_08 XX XX XX XX                                        : Reference Pointer
+!06 XX XX YY YY YY YY                                  : Event-Dependent Pointer
+!07 XX XX                                              : Return Event Flag
+!08 XX XX XX XX                                        : Reference Pointer
 _09 XX [YY YY YY YY]                                   : Multiple-Address Jump Pointer
-_0A XX XX XX XX                                        : Jump Pointer
-_0B XX                                                 : Perform Boolean True Check - Equal to Working Memory
-_0C XX                                                 : Perform Boolean False Check - Equal to Working Memory
+!0A XX XX XX XX                                        : Jump Pointer
+!0B XX                                                 : Perform Boolean True Check - Equal to Working Memory
+!0C XX                                                 : Perform Boolean False Check - Equal to Working Memory
 _0D XX                                                 : Copy to Argumentative Memory
 _0E XX                                                 : Store to Secondary Memory
 _0F                                                    : Increment Secondary Memory
@@ -37,8 +37,8 @@ _18 0D XX XX                                           : UNKNOWN
 _19 02                                                 : Load String to Memory
 _19 04                                                 : UNKNOWN
 _19 05 XX YY YY                                        : Inflict Status Change
-_19 10 XX                                              : Return Character Number
-_19 11 XX                                              : Return One Letter from a Character's Name
+!19 10 XX                                              : Return Character Number
+!19 11 XX                                              : Return One Letter from a Character's Name
 _19 14                                                 : UNKNOWN
 _19 16 XX YY                                           : Return Byte YY of Character's Status
 _19 18 XX                                              : UNKNOWN
@@ -68,11 +68,11 @@ _1A 08                                                 : UNKNOWN INCOMPLETE
 _1A 09                                                 : UNKNOWN INCOMPLETE
 _1A 0A                                                 : Open Phone Menu - Dummy?
 _1A 0B                                                 : UNKNOWN
-_1B 00                                                 : Copy Active Memory to Storage
-_1B 01                                                 : Copy Storage to Active Memory
-_1B 02 XX XX XX XX                                     : Boolean-False Pointer
-_1B 03 XX XX XX XX                                     : Boolean-True Pointer
-_1B 04                                                 : Swap Working and Argumentative Memory
+!1B 00                                                 : Copy Active Memory to Storage
+!1B 01                                                 : Copy Storage to Active Memory
+!1B 02 XX XX XX XX                                     : Boolean-False Pointer
+!1B 03 XX XX XX XX                                     : Boolean-True Pointer
+!1B 04                                                 : Swap Working and Argumentative Memory
 _1B 05                                                 : Copy Active Memory to WRAM
 _1B 06                                                 : Copy WRAM to Active Memory
 _1C 00 XX                                              : Text Color Effects
@@ -80,7 +80,7 @@ _1C 01 XX                                              : Display Statistics
 _1C 02 XX                                              : Display Character Name
 _1C 03 XX                                              : Display Text Character
 _1C 04                                                 : Open HP/PP Windows
-_1C 05 XX                                              : Display Item Name
+!1C 05 XX                                              : Display Item Name
 _1C 06 XX                                              : Display Teleport Destination Name
 _1C 07 XX                                              : Display Text Strings Horizontally
 _1C 08 XX                                              : Display Text Graphics
@@ -98,29 +98,29 @@ _1C 14 XX                                              : UNKNOWN
 _1C 15 XX                                              : UNKNOWN
 _1D 00 XX YY                                           : Give Item to Character and Return Recipient
 _1D 01 XX YY                                           : Take Item from Character
-_1D 02 XX                                              : Perform Boolean False Check - Inventory Capacity
-_1D 03 XX                                              : Perform Boolean True Check - Inventory Vacancy
-_1D 04 XX YY                                           : Perform Boolean True Check - Absence of Item
-_1D 05 XX YY                                           : Perform Boolean True Check - Presence of Item
+!1D 02 XX                                              : Perform Boolean False Check - Inventory Capacity
+!1D 03 XX                                              : Perform Boolean True Check - Inventory Vacancy
+!1D 04 XX YY                                           : Perform Boolean True Check - Absence of Item
+!1D 05 XX YY                                           : Perform Boolean True Check - Presence of Item
 _1D 06 XX XX XX XX                                     : Increase ATM Balance
 _1D 07 XX XX XX XX                                     : Decrease ATM Balance
 _1D 08 XX XX                                           : Increase Wallet Balance
 _1D 09 XX XX                                           : Decrease Wallet Balance
-_1D 0A XX                                              : Return Price of Item
-_1D 0B XX                                              : Return Selling Price ofItem
+!1D 0A XX                                              : Return Price of Item
+!1D 0B XX                                              : Return Selling Price ofItem
 _1D 0C XX XX                                           : UNKNOWN
-_1D 0D XX YY YY                                        : Check for Status Ailment
+!1D 0D XX YY YY                                        : Check for Status Ailment
 _1D 0E XX YY                                           : Give Item to Character, Return Recipient and Number of Items
 _1D 0F XX XX                                           : UNKNOWN
 _1D 10 XX XX                                           : UNKNOWN
 _1D 11 XX XX                                           : UNKNOWN
 _1D 12 XX XX                                           : UNKNOWN
 _1D 13 XX XX                                           : UNKNOWN
-_1D 14 XX XX XX XX                                     : (Check for Cash on Hand) *True if X<$
+!1D 14 XX XX XX XX                                     : (Check for Cash on Hand) *True if X<$
 _1D 15 XX XX                                           : UNKNOWN
-_1D 17 XX XX XX XX                                     : Check for Cash in ATM
+!1D 17 XX XX XX XX                                     : Check for Cash in ATM
 _1D 18 XX                                              : UNKNOWN
-_1D 19 XX                                              : (Boolean Check for Number of Party Members) NOTE - Teddy doesn't count!
+!1D 19 XX                                              : (Boolean Check for Number of Party Members) NOTE - Teddy doesn't count!
 _1D 20                                                 : Check for User Targeting Self
 _1D 21 XX                                              : Generate Random Number
 _1D 22                                                 : Check for Exit Mouse Compatibility
@@ -143,7 +143,7 @@ _1E 0D XX YY                                           : Boost Vitality Stat
 _1E 0E XX YY                                           : Boost Luck Stat
 _1F 00 XX YY                                           : Play Music Track
 _1F 01 XX                                              : "UNKNOWN" (Stop Music)
-_1F 02 XX                                              : Play Sound Effect
+!1F 02 XX                                              : Play Sound Effect
 _1F 03                                                 : Restore Default Music
 _1F 04 XX                                              : Toggle Text Printing Sound
 _1F 05                                                 : Disallow Sector Boundaries to Change Music
