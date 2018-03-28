@@ -14,6 +14,8 @@ EnemyPlaceObject    enemy_place_table.txt       10b880      203
 BattleEntryObject   battle_entry_table.txt      10c60d      484
 ItemObject          item_table.txt              155000      254
 ShopObject          shop_table.txt              1576b9      65
+PsiTeleportObject   psi_teleport_table.txt      157880      16
+PsiAbilityObject    psi_ability_table.txt       158a50      53
 ExperienceObject    experience_table.txt        158f49      400
 EnemyObject         enemy_table.txt             159589      231
 StatGrowthObject    stat_growth_table.txt       15ea5b      4

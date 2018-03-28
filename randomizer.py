@@ -14,7 +14,7 @@ from collections import Counter
 import json
 
 
-VERSION = 8
+VERSION = 8.01
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -201,6 +201,10 @@ class Script:
     _all_scripts = []
     _freespace = (0x1545c0, 0x154fff)
 
+    @classproperty
+    def every(cls):
+        return Script._all_scripts
+
     def __init__(self, pointer, endpointer=None):
         self.pointer = pointer
         self.endpointer = endpointer
@@ -232,6 +236,20 @@ class Script:
                     else:
                         newlines.append(line)
                 s.lines = newlines
+                s.write_script()
+
+    def replace_item(self, old_item, new_item):
+        for s in self.subscript_closure:
+            newlines = []
+            needs_write = False
+            for line in s.lines:
+                if (tuple(line[:2]) == (0x1d, 0x00) or tuple(line[:2]) == (0x1d, 0x0e)) and line[3] == old_item.index:
+                    needs_write = True
+                    newlines.append([line[0], line[1], line[2], new_item.index])
+                else:
+                    newlines.append(line)
+            s.lines = newlines
+            if needs_write:
                 s.write_script()
 
     @property
@@ -410,6 +428,16 @@ class Script:
                     e = BattleEntryObject.get(index)
                     es.append(e)
         return sorted(es, key=lambda e: e.index)
+
+    @cached_property
+    def items_given(self):
+        items = []
+        for s in self.subscript_closure:
+            for line in self.lines:
+                if tuple(line[:2]) == (0x1d, 0x00) or tuple(line[:2]) == (0x1d, 0x0e):
+                    i = ItemObject.get(line[3])
+                    items.append(i)
+        return sorted(items, key=lambda i: i.index)
 
     @classmethod
     def get_by_pointer(self, pointer):
@@ -821,6 +849,10 @@ class AncientCave(TableObject):
     flag = 'a'
     flag_description = "with ancient cave mode"
 
+    @classproperty
+    def after_order(self):
+        return [PsiTeleportObject]
+
     @classmethod
     def full_randomize(cls):
         AncientCave.class_reseed("ancient")
@@ -1152,6 +1184,10 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
 class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     flag = 'g'
     flag_description = "gift box contents"
+    
+    @classproperty
+    def after_order(self):
+        return [PsiTeleportObject]
 
     def __repr__(self):
         return "{0:0>2} {1:0>2} {3:0>5} {2:0>4}".format(
@@ -1269,6 +1305,10 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         for c in Cluster.generate_clusters():
             if self.nearest_exit in c.exits:
                 return c
+
+    def replace_item(self, old_item, new_item):
+        assert(self.chest_contents == old_item)
+        self.tpt.argument = new_item.index
 
     @classmethod
     def mutate_all(cls):
@@ -2665,6 +2705,20 @@ class ItemObject(TableObject):
                 return True
 
         return False
+    
+    @property
+    def script_sources(self):
+        return [s for s in Script.every if self in s.items_given]
+
+    @property
+    def chest_sources(self):
+        return [t for t in MapSpriteObject.every if t.is_chest and self == t.chest_contents]
+    
+    @property
+    def all_sources(self):
+        sources = self.script_sources
+        sources.extend(self.chest_sources)
+        return sources
 
     def cleanup(self):
         if 'a' in get_flags() and not (
@@ -2926,6 +2980,82 @@ class InitialStatsObject(TableObject):
                 self.money = 65000
 
 
+class PsiAbilityObject(TableObject):
+    def cleanup(self):
+        if 'k' in get_flags() and self.name_index == 0x11 and self.greek_letter == 0x01: # Teleport Alpha
+            self.ness_level = 1
+
+class PsiTeleportObject(TableObject):
+    flag = 'k'
+    flag_description = 'with keysanity'
+    _results = None
+
+    @property
+    def name(self):
+        return bytes_to_text(self.name_text)
+    
+    def mutate(self):
+        if len(self.name) > 0:
+            self.flag = 0xd1 # Onett discovered
+
+    @classmethod
+    def serialize(cls):
+        def serialize_result(result):
+            return {
+                "item": result[0].name,
+                "destination": result[1].name
+            }
+        return map(serialize_result, PsiTeleportObject._results)
+
+    @classmethod
+    def intershuffle(cls):
+        cls.class_reseed("inter")
+        key_items_index = [
+            0x01,   # Franklin badge
+            #0x69,   # Jar of Fly Honey - Chest handled differently, at 0x7dacb.
+            0xa4,   # Shyness book
+            0xa6,   # King banana
+            0xaa,   # Key to the shack
+            0xaf,   # Hawk eye
+            0xb0,   # Bicycle
+            0xb4,   # Wad of bills
+            0xb6,   # Diamond
+            0xb7,   # Signed banana
+            0xb8,   # Pencil eraser
+            0xc0,   # Key to the tower
+            0xca,   # Town map
+            0xd3,   # Tendakraut
+            0xfd,   # Carrot key
+        ]
+        # TODO: Cache this when final key items list decided.
+        a =  [me for me in MapEventObject.every]
+        b = [ms for ms in MapSpriteObject.every]
+        for o in a + b:
+            o.script
+        Script.get_by_pointer(0x9d95e) #Tendakraut
+        #key_items = [i for i in ItemObject.every if i.is_key_item]
+        key_items = map(lambda x: ItemObject.get(x), key_items_index)
+        shuffled = list(key_items)
+        random.shuffle(shuffled)
+        destination_sets = map(lambda x: x.all_sources, shuffled)
+        for item, source in zip(shuffled, destination_sets):
+            print "%d: %x %s" % (len(source), item.index, item.name)
+        PsiTeleportObject._results = zip(key_items, shuffled)
+        print PsiTeleportObject._results
+        for (item, destination_existing_item, destination_set) in zip(key_items, shuffled, destination_sets):
+            for destination in destination_set:
+                print "Replacing %s with %s at %s" % (item.name, destination_existing_item.name, destination)
+                destination.replace_item(destination_existing_item, item)
+                destination.mutated = True
+
+
+    @classmethod
+    def full_cleanup(cls):
+        if 'a' in get_flags():
+            print "WARNING: Keysanity and Ancient Cave modes are not designed to be used together. Things may be broken."
+        super(PsiTeleportObject, cls).full_cleanup()
+     
+
 if __name__ == "__main__":
     try:
         print ("You are using the Earthbound Ancient Cave "
@@ -2966,6 +3096,8 @@ if __name__ == "__main__":
             },
             "chests": [m for m in MapSpriteObject.every if m.is_chest]
         }
+        if 'k' in get_flags():
+            spoiler_object["keysanity"] = PsiTeleportObject.serialize()
         if 'a' in get_flags():
             Cluster.mark_shortest_path()
         if 'a' in get_flags() or "devmode" in get_activated_codes():
