@@ -1,4 +1,30 @@
 LATEST
+v9
+-Keysanity mode added. Certain key items have been mixed up, but all teleports are available from the start of the game!
+-Here are the item locations that have been shuffled in Keysanity mode:
+--Franklin badge
+--Shyness book
+--King banana
+--Key to the shack
+--Hawk eye
+--Bicycle
+--Wad of bills
+--Diamond
+--Signed banana
+--Pencil eraser
+--Key to the tower
+--Town map
+--Carrot key
+--Tendakraut - but the Tendakraut has been transformed into a Jar of Fly Honey!
+-Because there is a Jar of Fly Honey in the item pool, proceeding through Winters as Jeff is not required; however, if you choose to, the Bubble Monkey rope event has been patched to work even if you have extra companions.
+-Keysanity mode is incompatible with Ancient Cave mode, and probably needs a lot of testing. Let me know if you encounter issues.
+
+KNOWN ISSUES
+-The Lost World "geyser softlock". I'm not sure what caused this.
+-More instances of an equippable item than can be used can be generated.
+-Possible bug with dying at Giygas.
+
+OLDER
 v8
 -Non-essential dialogs shuffle with the 'd' flag (with special surprises possible at Pokey).
 -Chests in non-AC mode have a 20% chance to have any non-key item.
@@ -11,12 +37,6 @@ v8
 --Bag of dragonite room (Pyramid)
 --Magicant red area
 
-KNOWN ISSUES
--The Lost World "geyser softlock". I'm not sure what caused this.
--More instances of an equippable item than can be used can be generated.
--Possible bug with dying at Giygas.
-
-OLDER
 v7
 -Sanctuary Boss rooms in AC now always go front-to-back as they do in the base game.
 -Non-Euclidian room layouts at Electro Specter no longer happen.
