@@ -3083,11 +3083,21 @@ class PsiTeleportObject(TableObject):
             print "WARNING: Keysanity and Ancient Cave modes are incompatible. Keysanity has been disabled."
             super(PsiTeleportObject, cls).full_cleanup()
             return
+
         # Patch Bubble Monkey rope interaction
         bubble_monkey_rope = Script.get_by_pointer(0x97f72)
         lines = bubble_monkey_rope.lines
         bubble_monkey_rope.lines = lines[:1] + lines[-2:]
         bubble_monkey_rope.write_script()
+
+        # Patch intro script to set Onett flag immediately
+        intro = Script.get_by_pointer(0x5e70b)
+        patch_lines = intro.lines[:2] + [(0x04, 0xd1, 0x00), (0x02, )] # Enable Onett teleport
+        patch = Script.write_new_script(patch_lines)
+        assert patch.length == 10
+        intro.lines = [ccode_call_address(patch.pointer)] + [(0x00, )] + intro.lines[2:]
+        intro.write_script()
+
         super(PsiTeleportObject, cls).full_cleanup()
      
 
