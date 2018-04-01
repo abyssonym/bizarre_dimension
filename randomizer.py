@@ -344,6 +344,7 @@ class Script:
             (0x1f, 0x21, 0x27),
             (0x1f, 0x21, 0x2b),
             (0x1f, 0x21, 0x2c),
+            (0x1f, 0x21, 0x2e),
             (0x1f, 0x21, 0x2f),
             (0x1f, 0x21, 0x30),
             (0x1f, 0x21, 0x31),
@@ -1730,8 +1731,8 @@ class TeleportObject(TableObject):
                 self.x = 954
                 self.y = 45
             if self.index == 0xE9: # Unused value - for testing
-                self.x = 864
-                self.y = 1078
+                self.x = 57
+                self.y = 292
 
 class ZoneMixin(GridMixin):
     rows = 40
@@ -2982,7 +2983,7 @@ class InitialStatsObject(TableObject):
 
 class PsiAbilityObject(TableObject):
     def cleanup(self):
-        if 'k' in get_flags() and self.name_index == 0x11 and self.greek_letter == 0x01: # Teleport Alpha
+        if 'k' in get_flags() and 'a' not in get_flags() and self.name_index == 0x11 and self.greek_letter == 0x01: # Teleport Alpha
             self.ness_level = 1
 
 class PsiTeleportObject(TableObject):
@@ -2995,6 +2996,8 @@ class PsiTeleportObject(TableObject):
         return bytes_to_text(self.name_text)
     
     def mutate(self):
+        if 'a' in get_flags():
+            return # Disable Keysanity if Ancient Cave on
         if len(self.name) > 0:
             self.flag = 0xd1 # Onett discovered
 
@@ -3010,6 +3013,8 @@ class PsiTeleportObject(TableObject):
     @classmethod
     def intershuffle(cls):
         cls.class_reseed("inter")
+        if 'a' in get_flags():
+            return # Disable Keysanity if Ancient Cave on
         key_items_index = [
             0x01,   # Franklin badge
             #0x69,   # Jar of Fly Honey - Chest handled differently, at 0x7dacb.
@@ -3052,7 +3057,13 @@ class PsiTeleportObject(TableObject):
     @classmethod
     def full_cleanup(cls):
         if 'a' in get_flags():
-            print "WARNING: Keysanity and Ancient Cave modes are not designed to be used together. Things may be broken."
+            print "WARNING: Keysanity and Ancient Cave modes are incompatible. Keysanity has been disabled."
+            return
+        # Patch Bubble Monkey rope interaction
+        bubble_monkey_rope = Script.get_by_pointer(0x97f72)
+        lines = bubble_monkey_rope.lines
+        bubble_monkey_rope.lines = lines[:1] + lines[-2:]
+        bubble_monkey_rope.write_script()
         super(PsiTeleportObject, cls).full_cleanup()
      
 
@@ -3096,7 +3107,7 @@ if __name__ == "__main__":
             },
             "chests": [m for m in MapSpriteObject.every if m.is_chest]
         }
-        if 'k' in get_flags():
+        if 'k' in get_flags() and 'a' not in get_flags():
             spoiler_object["keysanity"] = PsiTeleportObject.serialize()
         if 'a' in get_flags():
             Cluster.mark_shortest_path()
