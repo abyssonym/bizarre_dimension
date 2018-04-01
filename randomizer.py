@@ -2988,7 +2988,7 @@ class PsiAbilityObject(TableObject):
 
 class PsiTeleportObject(TableObject):
     flag = 'k'
-    flag_description = 'with keysanity'
+    flag_description = 'with keysanity mode'
     _results = None
 
     @property
@@ -3000,6 +3000,27 @@ class PsiTeleportObject(TableObject):
             return # Disable Keysanity if Ancient Cave on
         if len(self.name) > 0:
             self.flag = 0xd1 # Onett discovered
+
+            
+    @classmethod
+    def check_legal_keysanity(cls):
+        # Rather than a post-check, this would be better served as placing things logically in the first place.
+        # But this is sufficient for now.
+        if PsiTeleportObject._results is None:
+            return False
+        mapping = dict(PsiTeleportObject._results)
+        if mapping[ItemObject.get(0xb4)] is ItemObject.get(0x01): # Franklin badge at Wad of bills
+            return False
+        if mapping[ItemObject.get(0x01)] is ItemObject.get(0xb8): # Pencil eraser at Franklin badge
+            return False
+        if mapping[ItemObject.get(0xb4)] is ItemObject.get(0xb8): # Pencil eraser at Wad of bills
+            return False
+        if mapping[ItemObject.get(0xfd)] is ItemObject.get(0xb7): # Signed banana at Carrot key
+            return False
+        if mapping[ItemObject.get(0xd3)] is ItemObject.get(0xa4): # Shyness book at Tendakraut
+            return False
+        return True
+        
 
     @classmethod
     def serialize(cls):
@@ -3037,20 +3058,22 @@ class PsiTeleportObject(TableObject):
         b = [ms for ms in MapSpriteObject.every]
         for o in a + b:
             o.script
-        Script.get_by_pointer(0x9d95e) #Tendakraut
-        #key_items = [i for i in ItemObject.every if i.is_key_item]
-        key_items = map(lambda x: ItemObject.get(x), key_items_index)
-        shuffled = list(key_items)
-        random.shuffle(shuffled)
-        destination_sets = map(lambda x: x.all_sources, shuffled)
-        for item, source in zip(shuffled, destination_sets):
-            print "%d: %x %s" % (len(source), item.index, item.name)
-        PsiTeleportObject._results = zip(key_items, shuffled)
-        print PsiTeleportObject._results
-        for (item, destination_existing_item, destination_set) in zip(key_items, shuffled, destination_sets):
+        Script.get_by_pointer(0x9d95e) # Tendakraut
+
+        source_items = map(lambda x: ItemObject.get(x), key_items_index)
+        destination_sets = map(lambda x: x.all_sources, source_items)
+        new_items = list(source_items)
+
+        new_items.remove(ItemObject.get(0xd3)) # Tendakraut
+        new_items.append(ItemObject.get(0x69)) # Jar of Fly Honey
+
+        while not cls.check_legal_keysanity():
+            random.shuffle(new_items)
+            PsiTeleportObject._results = zip(source_items, new_items)
+
+        for (source_item, new_item, destination_set) in zip(source_items, new_items, destination_sets):
             for destination in destination_set:
-                print "Replacing %s with %s at %s" % (item.name, destination_existing_item.name, destination)
-                destination.replace_item(destination_existing_item, item)
+                destination.replace_item(source_item, new_item)
                 destination.mutated = True
 
 
@@ -3058,6 +3081,7 @@ class PsiTeleportObject(TableObject):
     def full_cleanup(cls):
         if 'a' in get_flags():
             print "WARNING: Keysanity and Ancient Cave modes are incompatible. Keysanity has been disabled."
+            super(PsiTeleportObject, cls).full_cleanup()
             return
         # Patch Bubble Monkey rope interaction
         bubble_monkey_rope = Script.get_by_pointer(0x97f72)
