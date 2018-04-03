@@ -14,7 +14,7 @@ from collections import Counter
 import json
 
 
-VERSION = 9
+VERSION = 9.01
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -3097,6 +3097,16 @@ class PsiTeleportObject(TableObject):
         assert patch.length == 10
         intro.lines = [ccode_call_address(patch.pointer)] + [(0x00, )] + intro.lines[2:]
         intro.write_script()
+
+        # Patch Montague to always show up
+        montague = TPTObject.get(0x2f8)
+        assert montague.address == 0xc60349
+        montague.flag = 0
+
+        # Patch Mr Spoon to request autograph even after he's received it
+        spoon = TPTObject.get(0x38d)
+        assert spoon.address == 0xc826bc
+        spoon.address = 0xc822d2
 
         super(PsiTeleportObject, cls).full_cleanup()
      

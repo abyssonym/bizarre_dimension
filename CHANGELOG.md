@@ -1,5 +1,10 @@
 # Changelog
 
+## v10 (In progress)
+### Bugfixes
+- Keysanity: Gerard Montague always appears outside of the mine, so you cannot get locked out of Diamond location
+- Keysanity: Mr Spoon can always request the autograph, so you cannot get locked out of Signed banana location
+
 ## v9 (2018-03-31)
 - Keysanity mode added. Certain key items have been mixed up, but all teleports are available from the start of the game!
 - Here are the item locations that have been shuffled in Keysanity mode:
