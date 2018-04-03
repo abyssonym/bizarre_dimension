@@ -20,7 +20,7 @@ You will not have to do any storyline events, like riding the Sky Runner or beat
 
 ## Keysanity mode – `k`
 
-**WARNING**: This mode is currently in beta test, and may not fully work correctly. Any feedback on problems encountered would be helpful.
+**WARNING**: This mode is currently in beta test, and may not fully work correctly. Any feedback on problems encountered would be helpful. Known issue: Defeating Starman DX or falling down Lumine Hall's hole causes Gerard Montague to no longer appear.
 
 Keysanity mode also radically changes how the game is played. 14 different key items have been shuffled around throughout the world; Mayor Pirkle may give you the Bicycle, while the Bike Shop guy may give you the Carrot key. To help you on this more complicated quest, however, Ness already knows PSI Teleport, and all available teleport locations are unlocked at the start of the game. Your goal is to beat the game as normal, but getting to all 8 Your Sanctuary locations will be more of a challenge.
 
@@ -69,6 +69,8 @@ There are a few special codes you can enter along with the flags. For example, t
 - More instances of an equippable item than can be used can be generated.
 - Possible Lost World "geyser softlock" in AC mode. More information is needed.
 - Possible bug with dying at Giygas in AC mode. More information is needed.
+- Keysanity mode: Gerard Montague can disappear before important events.
+- Keysanity mode: Venus can not give her item.
 
 ## Contact
 
