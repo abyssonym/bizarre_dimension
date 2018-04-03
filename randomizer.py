@@ -3026,8 +3026,8 @@ class PsiTeleportObject(TableObject):
     def serialize(cls):
         def serialize_result(result):
             return {
-                "item": result[0].name,
-                "destination": result[1].name
+                "item": result[1].name,
+                "destination": result[0].name
             }
         return map(serialize_result, PsiTeleportObject._results)
 
