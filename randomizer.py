@@ -1365,6 +1365,13 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         index = int(round(cave_rank * (len(candidates)-1)))
         chosen = candidates[index]
         new_item = chosen.get_similar(candidates=candidates)
+        if new_item.name == "Null":
+            print "WOAH DOGGY"
+            print new_item
+            print new_item.rank
+            print index
+            print candidates
+
         if new_item.limit_one:
             ItemObject.done_ones.add(new_item.index)
         self.tpt.argument = new_item.index
@@ -2677,6 +2684,9 @@ class ItemObject(TableObject):
 
     @property
     def rank(self):
+        if self.index == 0: # 'Null' item has a cost so will get incorrectly ranked
+            return -1
+
         if self.is_key_item:
             if 'a' in get_flags() and not self.get_bit("nogive"):
                 return 1000001

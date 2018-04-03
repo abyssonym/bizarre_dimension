@@ -2,6 +2,7 @@
 
 ## v10 (In progress)
 ### Bugfixes
+- Dummy item named "Null" should no longer appear in randomized chests.
 - Keysanity: Gerard Montague always appears outside of the mine, so you cannot get locked out of Diamond location
 - Keysanity: Mr Spoon can always request the autograph, so you cannot get locked out of Signed banana location
 
