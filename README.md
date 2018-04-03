@@ -20,6 +20,8 @@ You will not have to do any storyline events, like riding the Sky Runner or beat
 
 ## Keysanity mode – `k`
 
+**WARNING**: This mode is currently in beta test, and may not fully work correctly. Any feedback on problems encountered would be helpful.
+
 Keysanity mode also radically changes how the game is played. 14 different key items have been shuffled around throughout the world; Mayor Pirkle may give you the Bicycle, while the Bike Shop guy may give you the Carrot key. To help you on this more complicated quest, however, Ness already knows PSI Teleport, and all available teleport locations are unlocked at the start of the game. Your goal is to beat the game as normal, but getting to all 8 Your Sanctuary locations will be more of a challenge.
 
 The list of items that have had their locations shuffled in this mode is as follows:
