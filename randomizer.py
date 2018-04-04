@@ -14,7 +14,7 @@ from collections import Counter
 import json
 
 
-VERSION = 9.01
+VERSION = 9.02
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -3116,7 +3116,7 @@ class PsiTeleportObject(TableObject):
         # Patch Mr Spoon to request autograph even after he's received it
         spoon = TPTObject.get(0x38d)
         assert spoon.address == 0xc826bc
-        spoon.address = 0xc822d2
+        spoon.address = 0xc82468
 
         super(PsiTeleportObject, cls).full_cleanup()
      
