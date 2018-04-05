@@ -3118,6 +3118,14 @@ class PsiTeleportObject(TableObject):
         assert spoon.address == 0xc826bc
         spoon.address = 0xc82468
 
+        # Patch Bubble Monkey to appear at north shore as soon as he runs off with his gal
+        monkey = Script.get_by_pointer(0x882bd)
+        patch_lines = monkey.lines[:2] + [(0x04, 0x76, 0x02), (0x02, )] # Enable Monkey at north shore
+        patch = Script.write_new_script(patch_lines)
+        assert patch.length == 9
+        monkey.lines = [ccode_call_address(patch.pointer)] + monkey.lines[2:]
+        monkey.write_script()
+
         super(PsiTeleportObject, cls).full_cleanup()
      
 
