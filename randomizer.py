@@ -11,6 +11,7 @@ from collections import defaultdict
 from os import path
 from time import time, sleep
 from collections import Counter
+from array import array
 import json
 
 
@@ -19,6 +20,11 @@ ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
 TEXT_INVERSE_MAPPING = []
+
+
+hexify = lambda x: "{0:0>2}".format("%x" % x)
+numify = lambda x: "{0: >3}".format(x)
+minmax = lambda x: (min(x), max(x))
 
 
 text_map_filename = path.join(tblpath, "text_mapping.txt")
@@ -109,11 +115,12 @@ def values_to_text(values):
         values = values[1:]
     return result
 
-def text_to_values(s):
+def text_to_values(s, allow_multi=True):
     result = []
+    mapping = [i for i in TEXT_INVERSE_MAPPING if allow_multi or len(i[0]) == 1]
     while s:
         found = False
-        for text, codes in TEXT_INVERSE_MAPPING:
+        for text, codes in mapping:
             if s.startswith(text):
                 result.extend(codes)
                 s = s[len(text):]
@@ -122,12 +129,21 @@ def text_to_values(s):
         if found == False:
             raise Exception("String not able to be mapped: %s" % s)
     return tuple(result)
+    
+def text_to_bytes(s, min_length=25):
+    bytelist = list(text_to_values(s, False))
+    while len(bytelist) < min_length: 
+        bytelist.append(0)
+    return array('B', bytelist).tostring()
+
+def ccode_address(address):
+    return (address & 0xff, (address & 0xff00) / 0xff,((address + 0xc00000) & 0xff0000) / 0xffff, 0x00)
 
 def ccode_call_address(address):
-    return (0x08, address & 0xff, (address & 0xff00) / 0xff,((address + 0xc00000) & 0xff0000) / 0xffff, 0x00)
+    return (0x08,) + ccode_address(address)
 
 def ccode_goto_address(address):
-    return (0x0a, address & 0xff, (address & 0xff00) / 0xff,((address + 0xc00000) & 0xff0000) / 0xffff, 0x00)
+    return (0x0a,) + ccode_address(address)
 
 def load_areas(area_filename=None):
     if area_filename is None:
@@ -885,6 +901,10 @@ class Dialog(TableObject):
     flag = 'd'
     flag_description = "dialogs"
 
+    @classproperty
+    def after_order(self):
+        return [PsiTeleportObject]
+
     @classmethod
     def intershuffle(cls):
         cls.class_reseed("inter")
@@ -1188,16 +1208,12 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     
     @classproperty
     def after_order(self):
-        return [PsiTeleportObject]
+        return [PsiTeleportObject, AncientCave]
 
     def __repr__(self):
         return "{0:0>2} {1:0>2} {3:0>5} {2:0>4}".format(
             *["%x" % v for v in [self.x, self.y, self.tpt_number,
                                  self.pointer]])
-
-    @classproperty
-    def after_order(self):
-        return [AncientCave]
 
     def serialize(self):
         result = {
@@ -3010,6 +3026,11 @@ class PsiTeleportObject(TableObject):
             return # Disable Keysanity if Ancient Cave on
         if len(self.name) > 0:
             self.flag = 0xd1 # Onett discovered
+        if self.index == 13: # Add South Winters teleport
+            self.name_text = text_to_bytes("South Winters", 25)
+            self.x = 26
+            self.y = 595
+            self.flag = 0xd1 # Onett discovered
 
             
     @classmethod
@@ -3115,7 +3136,7 @@ class PsiTeleportObject(TableObject):
 
         # Patch Mr Spoon to request autograph even after he's received it
         spoon = TPTObject.get(0x38d)
-        assert spoon.address == 0xc826bc
+        #assert spoon.address == 0xc826bc - could be changed in Dialog shuffle
         spoon.address = 0xc82468
 
         # Patch Bubble Monkey to appear at north shore as soon as he runs off with his gal
@@ -3125,6 +3146,19 @@ class PsiTeleportObject(TableObject):
         assert patch.length == 9
         monkey.lines = [ccode_call_address(patch.pointer)] + monkey.lines[2:]
         monkey.write_script()
+
+        # Patch Dr Andonuts to recognize Ness isn't Jeff
+        andonuts = Script.get_by_pointer(0x6b18d)
+        patch_lines = andonuts.lines[:2] + [ # check the normal flags first
+            (0x19, 0x10, 0x01), # check character in slot 1
+            (0x0b, 0x03), # is it Jeff?
+            (0x1b, 0x03) + ccode_address(0x6b18d), # go to normal andonuts text
+            ccode_goto_address(0x6b56e), # go to generic text for Ness
+            (0x02, )] 
+        patch = Script.write_new_script(patch_lines)
+        andonuts_tpt = TPTObject.get(0x267)
+        assert andonuts_tpt.address == 0xc6b18d
+        andonuts_tpt.address = 0xc00000 + patch.pointer
 
         super(PsiTeleportObject, cls).full_cleanup()
      
@@ -3148,10 +3182,6 @@ if __name__ == "__main__":
             "devmode": ["devmode"]
         }
         run_interface(ALL_OBJECTS, snes=True, codes=codes)
-
-        hexify = lambda x: "{0:0>2}".format("%x" % x)
-        numify = lambda x: "{0: >3}".format(x)
-        minmax = lambda x: (min(x), max(x))
 
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)

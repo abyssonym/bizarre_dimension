@@ -1,10 +1,12 @@
 # Changelog
 
 ## v10 (In progress)
+- Keysanity mode now features a PSI Teleport destination of South Winters. This allows much easier routing and can actually avoid the Jeff-alone events now.
 ### Bugfixes
 - Dummy item named "Null" should no longer appear in randomized chests.
-- Keysanity: Gerard Montague always appears outside of the mine, so you cannot get locked out of Diamond location
-- Keysanity: Mr Spoon can always request the autograph, so you cannot get locked out of Signed banana location
+- Keysanity: Gerard Montague always appears outside of the mine, so you cannot get locked out of Diamond location.
+- Keysanity: Mr Spoon can always request the autograph, so you cannot get locked out of Signed banana location.
+- Keysanity: Bubble Monkey should always be available on the north shore after he runs off the first time.
 
 ## v9 (2018-03-31)
 - Keysanity mode added. Certain key items have been mixed up, but all teleports are available from the start of the game!
