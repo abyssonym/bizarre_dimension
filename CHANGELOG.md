@@ -1,6 +1,6 @@
 # Changelog
 
-## v10 (In progress)
+## v10 (2018-04-05)
 - Keysanity mode now features a PSI Teleport destination of South Winters. This allows much easier routing and can actually avoid the Jeff-alone events now.
 ### Bugfixes
 - Dummy item named "Null" should no longer appear in randomized chests.

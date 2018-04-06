@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 9.03
+VERSION = 10
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
