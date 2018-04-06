@@ -7,6 +7,7 @@
 - Keysanity: Gerard Montague always appears outside of the mine, so you cannot get locked out of Diamond location.
 - Keysanity: Mr Spoon can always request the autograph, so you cannot get locked out of Signed banana location.
 - Keysanity: Bubble Monkey should always be available on the north shore after he runs off the first time.
+- Keysanity: Various impossible item routings no longer will occur.
 
 ## v9 (2018-03-31)
 - Keysanity mode added. Certain key items have been mixed up, but all teleports are available from the start of the game!

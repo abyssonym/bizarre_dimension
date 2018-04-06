@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 9.02
+VERSION = 9.03
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -3047,6 +3047,12 @@ class PsiTeleportObject(TableObject):
         if mapping[ItemObject.get(0xb4)] is ItemObject.get(0xb8): # Pencil eraser at Wad of bills
             return False
         if mapping[ItemObject.get(0xfd)] is ItemObject.get(0xb7): # Signed banana at Carrot key
+            return False
+        if mapping[ItemObject.get(0xfd)] is ItemObject.get(0xb6): # Diamond at Carrot key
+            return False
+        if mapping[ItemObject.get(0xa6)] is ItemObject.get(0xb6): # Diamond at King banana
+            return False
+        if mapping[ItemObject.get(0xb7)] is ItemObject.get(0xb6): # Diamond at Signed banana
             return False
         if mapping[ItemObject.get(0xd3)] is ItemObject.get(0xa4): # Shyness book at Tendakraut
             return False
