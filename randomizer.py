@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 10
+VERSION = 10.01
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1442,11 +1442,15 @@ class TPTObject(TableObject):
 
     def mutate(self):
         chests = [33, 195, 214, 233, 262, 322, 408]
+        tpt_exclusions = [198] # Meteorite (causes Buzz Buzz scene problems)
         sprite_exclusions = [0, 106, 200, 247, 295, 314, 316, 368,
             369, 371, 373, 374, 375, 376, 381, 410, 420, 428, 430, 431, 439,
             440, 441, 456, 462, 463,
             # Also exclude all chest sprites
             33, 195, 214, 233, 262, 322, 408]
+
+        if self.index in tpt_exclusions:
+            return
 
         if self.sprite in chests:
             self.sprite = random.choice(chests)
@@ -2751,6 +2755,23 @@ class ItemObject(TableObject):
         if 'a' in get_flags() and not (
                 self.is_sellable or self.get_bit("nogive")):
             self.price = max(self.price, 2)
+        
+        if "devmode" in get_activated_codes() and self.index == 0x9e: # spawn toggler
+            self.name_text = text_to_bytes("Spawn Toggler", 25)
+            toggle_script = Script.get_by_pointer(0x6fc94)
+            toggle_script.lines = [
+                (0x01,),
+                (0x06, 0x0b, 0x00, 0xaf, 0xfc, 0xc6, 0x00),
+                text_to_values("@Spawns set off", False),
+                (0x04, 0x0b, 0x00),
+                (0x13,),
+                (0x02,),
+                text_to_values("@Spawns set on", False),
+                (0x05, 0x0b, 0x00),
+                (0x13,),
+                (0x02,),
+            ]
+            toggle_script.write_script()
 
 
 class ShopObject(TableObject):
@@ -2998,6 +3019,9 @@ class InitialStatsObject(TableObject):
                 self.add_item(0xC4)  # sound stone
                 self.add_item(0x11)  # cracked bat
                 self.add_item(0xC5)  # exit mouse
+
+        if "devmode" in get_activated_codes() and self.index == 0:
+            self.add_item(0x9E)  # spawn toggler
 
         if "easymodo" in get_activated_codes():
             self.level = 99
