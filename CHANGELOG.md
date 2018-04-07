@@ -1,6 +1,8 @@
 # Changelog
 
-## v10 (In Progress)
+## v11 (In Progress)
+- Suporma location added to Keysanity distribution pool.
+- Meteorite piece added to Keysanity items pool (Suporma will not appear in pool).
 ### Bugfixes
 - NPC Sprites: Hang at Buzz Buzz will no longer occur.
 
@@ -15,7 +17,7 @@
 
 ## v9 (2018-03-31)
 - Keysanity mode added. Certain key items have been mixed up, but all teleports are available from the start of the game!
-- Here are the item locations that have been shuffled in Keysanity mode:
+- Here are the item locations that have been shuffled in Keysanity mode (OUTDATED):
   - Franklin badge
   - Shyness book
   - King banana

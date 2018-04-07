@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 10.01
+VERSION = 10.02
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -3111,6 +3111,7 @@ class PsiTeleportObject(TableObject):
             0xb8,   # Pencil eraser
             0xc0,   # Key to the tower
             0xca,   # Town map
+            0xcc,   # Suporma
             0xd3,   # Tendakraut
             0xfd,   # Carrot key
         ]
@@ -3127,6 +3128,8 @@ class PsiTeleportObject(TableObject):
 
         new_items.remove(ItemObject.get(0xd3)) # Tendakraut
         new_items.append(ItemObject.get(0x69)) # Jar of Fly Honey
+        new_items.remove(ItemObject.get(0xcc)) # Suporma
+        new_items.append(ItemObject.get(0xc1)) # Meteorite piece
 
         while not cls.check_legal_keysanity():
             random.shuffle(new_items)
