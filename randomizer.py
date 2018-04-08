@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 10.02
+VERSION = 10.03
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -3156,9 +3156,12 @@ class PsiTeleportObject(TableObject):
 
         # Patch intro script to set Onett flag immediately
         intro = Script.get_by_pointer(0x5e70b)
-        patch_lines = intro.lines[:2] + [(0x04, 0xd1, 0x00), (0x02, )] # Enable Onett teleport
+        patch_lines = intro.lines[:2] + [
+            (0x04, 0xd1, 0x00), # Enable Onett teleport
+            (0x04, 0x8c, 0x00), # Enable Venus giving item
+            (0x02, )]
         patch = Script.write_new_script(patch_lines)
-        assert patch.length == 10
+        assert patch.length == 13
         intro.lines = [ccode_call_address(patch.pointer)] + [(0x00, )] + intro.lines[2:]
         intro.write_script()
 
