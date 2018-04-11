@@ -7,6 +7,7 @@
 ### Bugfixes
 - NPC Sprites: Hang at Buzz Buzz will no longer occur.
 - Keysanity: Venus will always give you her item.
+- Keysanity: Pyramid can be accessed without fighting Kraken.
 
 ## v10 (2018-04-05)
 - Keysanity mode now features a PSI Teleport destination of South Winters. This allows much easier routing and can actually avoid the Jeff-alone events now.

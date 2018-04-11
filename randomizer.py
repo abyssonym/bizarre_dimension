@@ -3163,10 +3163,11 @@ class PsiTeleportObject(TableObject):
         intro = Script.get_by_pointer(0x5e70b)
         patch_lines = intro.lines[:2] + [
             (0x04, 0xd1, 0x00), # Enable Onett teleport
+            (0x04, 0xd9, 0x00), # Enable Pyramid entrance
             (0x04, 0x8c, 0x00), # Enable Venus giving item
             (0x02, )]
         patch = Script.write_new_script(patch_lines)
-        assert patch.length == 13
+        assert patch.length == 16
         intro.lines = [ccode_call_address(patch.pointer)] + [(0x00, )] + intro.lines[2:]
         intro.write_script()
 
