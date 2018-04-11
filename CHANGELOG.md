@@ -1,10 +1,12 @@
 # Changelog
 
 ## v11 (In Progress)
+- Keysanity mode now features a PSI Teleport destination of North Onett. This allows access to north locations if you teleport before clearing certain flags.
 - Suporma location added to Keysanity distribution pool.
 - Meteorite piece added to Keysanity items pool (Suporma will not appear in pool).
 ### Bugfixes
 - NPC Sprites: Hang at Buzz Buzz will no longer occur.
+- Keysanity: Venus will always give you her item.
 
 ## v10 (2018-04-05)
 - Keysanity mode now features a PSI Teleport destination of South Winters. This allows much easier routing and can actually avoid the Jeff-alone events now.

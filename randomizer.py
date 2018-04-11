@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 10.03
+VERSION = 10.04
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -3054,6 +3054,11 @@ class PsiTeleportObject(TableObject):
             self.name_text = text_to_bytes("South Winters", 25)
             self.x = 26
             self.y = 595
+            self.flag = 0xd1 # Onett discovered
+        if self.index == 15: # Add North Onett teleport
+            self.name_text = text_to_bytes("North Onett", 25)
+            self.x = 322
+            self.y = 54
             self.flag = 0xd1 # Onett discovered
 
             
