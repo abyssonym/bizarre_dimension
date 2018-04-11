@@ -1,6 +1,6 @@
 # Changelog
 
-## v11 (In Progress)
+## v11 (2018-04-10)
 - Keysanity mode now features a PSI Teleport destination of North Onett. This allows access to north locations if you teleport before clearing certain flags.
 - Suporma location added to Keysanity distribution pool.
 - Meteorite piece added to Keysanity items pool (Suporma will not appear in pool).
