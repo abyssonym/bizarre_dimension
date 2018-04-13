@@ -6,3 +6,6 @@ collision_ns_w,1
 collision_ns_h,1
 collision_ew_w,1
 collision_ew_h,1
+bank,1
+sprites_cardinal,8x2,list
+sprites_diagonal,8x2,list

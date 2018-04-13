@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 11
+VERSION = 11.01
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1381,12 +1381,6 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         index = int(round(cave_rank * (len(candidates)-1)))
         chosen = candidates[index]
         new_item = chosen.get_similar(candidates=candidates)
-        if new_item.name == "Null":
-            print "WOAH DOGGY"
-            print new_item
-            print new_item.rank
-            print index
-            print candidates
 
         if new_item.limit_one:
             ItemObject.done_ones.add(new_item.index)
@@ -1394,28 +1388,52 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
 
 
 class SpriteGroupObject(GetByPointerMixin, TableObject):
+    flag = 'p'
+    flag_description = 'pc sprites'
+    
     def __repr__(self):
         s = "{0:0>4} {1:0>4} {2:0>2} {3:0>2} {4:0>2} ({5:0>2} {6:0>2}) ({7:0>2} {8:0>2}) {9:0>2}".format(*
             ["%x" % v for v in
              [self.index, self.pointer, self.height, self.width, self.size, self.collision_ew_h, self.collision_ew_w, self.collision_ns_h, self.collision_ns_w, self.sprite_count]])
         return s
 
+    @property
+    def specsattrs(self):
+        specsattrs = super(SpriteGroupObject, self).specsattrs
+        if self.sprite_count <= 8:
+            specsattrs = [s for s in specsattrs if s[0] != "sprites_diagonal"]
+        return specsattrs
+
+    @property
+    def collision(self):
+        return (self.collision_ns_w, self.collision_ns_h, self.collision_ew_w, self.collision_ew_h)
     
     @property
     def sprite_count(self):
         if self.index == 463:
             return 8
-        raw_size = SpriteGroupObject.get(self.index + 1).pointer - self.pointer
-        return max(0, (raw_size - 9) / 2)
+        try:
+            raw_size = SpriteGroupObject.get(self.index + 1).pointer - self.pointer
+            return max(0, (raw_size - 9) / 2)
+        except KeyError:
+            return 16 # If we are not yet loaded, assume maximum size
+
 
     def valid_swap(self, other, exclusions):
         if self.index in exclusions or other.index in exclusions:
             return False
-        return (self.sprite_count == other.sprite_count
-            and self.collision_ns_w == other.collision_ns_w
-            and self.collision_ns_h == other.collision_ns_h
-            and self.collision_ew_w == other.collision_ew_w
-            and self.collision_ew_h == other.collision_ew_h)
+        return self.sprite_count == other.sprite_count and self.collision == other.collision
+
+    def mutate(self):
+        if 'funsize' in get_activated_codes():
+            return
+        if self.index not in [1, 2, 3, 4]: # Only randomize 4 main PCs
+            return
+        candidates = [sg for sg in SpriteGroupObject.every if self.collision == sg.collision] # More lenient than normal valid_swap
+        chosen = random.choice(candidates)
+        self.copy_data(chosen)
+        if chosen.sprite_count <= 8:
+            self.sprites_diagonal = chosen.sprites_cardinal
 
 
 class TPTObject(TableObject):
@@ -1469,11 +1487,13 @@ class TPTObject(TableObject):
 
 
 class PcGfxObject(TableObject):
-    flag = 'p'
-    flag_description = 'pc sprites'
+    #flag = 'p'
+    #flag_description = 'pc sprites'
     
     @classmethod
-    def mutate_all(cls):
+    def cleanup_all(cls):
+        if 'funsize' not in get_activated_codes():
+            return
         cls.class_reseed("mut")
         # Most values from original EarthBound Reshuffler
         # Table order: 0 1 2 3 5 6 4

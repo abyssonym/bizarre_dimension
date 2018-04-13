@@ -1,5 +1,8 @@
 # Changelog
 
+## v12 (In Progress)
+- New method of randomizing PC Sprites allows for much wider variety of sprites to appear
+
 ## v11 (2018-04-10)
 - Keysanity mode now features a PSI Teleport destination of North Onett. This allows access to north locations if you teleport before clearing certain flags.
 - Suporma location added to Keysanity distribution pool.
