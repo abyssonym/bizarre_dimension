@@ -1,21 +1,23 @@
 # Changelog
 
 ## v12 (In Progress)
-- New method of randomizing PC Sprites allows for much wider variety of sprites to appear
+- PC sprites: New method of randomizing allows for much wider variety of sprites to appear
+### Bugfixes
+- Ancient Cave: Logic errors that caused occasional incorrect enemies to appear in Electro Specter cave areas fixed.
 
 ## v11 (2018-04-10)
-- Keysanity mode now features a PSI Teleport destination of North Onett. This allows access to north locations if you teleport before clearing certain flags.
-- Suporma location added to Keysanity distribution pool.
-- Meteorite piece added to Keysanity items pool (Suporma will not appear in pool).
+- Keysanity: Now features a PSI Teleport destination of North Onett. This allows access to north locations if you teleport before clearing certain flags.
+- Keysanity: Suporma location added to distribution pool.
+- Keysanity: Meteorite piece added to items pool (Suporma will not appear in pool).
 ### Bugfixes
-- NPC Sprites: Hang at Buzz Buzz will no longer occur.
+- NPC sprites: Hang at Buzz Buzz will no longer occur.
 - Keysanity: Venus will always give you her item.
 - Keysanity: Pyramid can be accessed without fighting Kraken.
 
 ## v10 (2018-04-05)
-- Keysanity mode now features a PSI Teleport destination of South Winters. This allows much easier routing and can actually avoid the Jeff-alone events now.
+- Keysanity: Now features a PSI Teleport destination of South Winters. This allows much easier routing and can actually avoid the Jeff-alone events now.
 ### Bugfixes
-- Dummy item named "Null" should no longer appear in randomized chests.
+- Gift box contents: Dummy item named "Null" should no longer appear in randomized chests.
 - Keysanity: Gerard Montague always appears outside of the mine, so you cannot get locked out of Diamond location.
 - Keysanity: Mr Spoon can always request the autograph, so you cannot get locked out of Signed banana location.
 - Keysanity: Bubble Monkey should always be available on the north shore after he runs off the first time.
