@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 11.01
+VERSION = 11.02
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1429,9 +1429,13 @@ class SpriteGroupObject(GetByPointerMixin, TableObject):
             return
         if self.index not in [1, 2, 3, 4]: # Only randomize 4 main PCs
             return
-        candidates = [sg for sg in SpriteGroupObject.every if self.collision == sg.collision] # More lenient than normal valid_swap
+        candidates = [sg for sg in SpriteGroupObject.every if self.size == self.size and self.collision == sg.collision] # Different than normal valid_swap
         chosen = random.choice(candidates)
         self.copy_data(chosen)
+        #self.collision_ns_w = self.old_data["collision_ns_w"]
+        #self.collision_ns_h = self.old_data["collision_ns_h"]
+        #self.collision_ew_w = self.old_data["collision_ew_w"]
+        #self.collision_ew_h = self.old_data["collision_ew_h"]
         if chosen.sprite_count <= 8:
             self.sprites_diagonal = chosen.sprites_cardinal
 
