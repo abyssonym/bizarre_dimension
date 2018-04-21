@@ -1495,7 +1495,7 @@ class PcGfxObject(TableObject):
     #flag_description = 'pc sprites'
     
     @classmethod
-    def cleanup_all(cls):
+    def full_cleanup(cls):
         if 'funsize' not in get_activated_codes():
             return
         cls.class_reseed("mut")
