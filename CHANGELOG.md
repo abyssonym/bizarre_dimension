@@ -1,6 +1,6 @@
 # Changelog
 
-## v12 (In Progress)
+## v12 (2018-04-21)
 - PC sprites: New method of randomizing allows for much wider variety of sprites to appear
 ### Bugfixes
 - Ancient Cave: Logic errors that caused occasional incorrect enemies to appear in Electro Specter cave areas fixed.
