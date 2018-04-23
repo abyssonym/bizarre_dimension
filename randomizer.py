@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 12
+VERSION = 12.01
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -2504,6 +2504,11 @@ def generate_cave():
             0x06, 0x3f, 0x01, 0x2f, 0x99, 0xc9, 0x00)
         chaos_show_trigger.lines[0] = (0x0a, 0x2f, 0x99, 0xc9, 0x00)
         chaos_show_trigger.write_script()
+    
+    # Strong - prevent softlock
+    strong = TPTObject.get(71)
+    assert strong.address == 0xc7699e
+    strong.address = 0xc76b0b
 
     #for meo in MapEnemyObject.every:
     #    meo.cave_sanitize_events()

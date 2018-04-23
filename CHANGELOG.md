@@ -1,5 +1,9 @@
 # Changelog
 
+## v13 (In progress)
+### Bugfixes
+- Ancient Cave: Softlock due to Captain Strong prevented.
+
 ## v12 (2018-04-21)
 - PC sprites: New method of randomizing allows for much wider variety of sprites to appear
 ### Bugfixes
