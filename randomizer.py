@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 12.02
+VERSION = 12.03
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1344,6 +1344,7 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
                 o.mutate()
                 o.mutate_bits()
                 o.mutated = True
+            return
             
         # Ancient Cave
         # 0) Set non-in-cave chests to empty, for spoiler clarity
@@ -1359,6 +1360,7 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
 
         # 1) Place skip-granting items early in the cave
         early_items_index = [
+            0x7d,   # Backstage pass
             0xa6,   # King banana
             0xaa,   # Key to the shack
             0xb8,   # Pencil eraser
@@ -1402,7 +1404,7 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         chests = cls.unassigned_chests
         for chest in chests:
             index = int(round(chest.cave_rank * (len(candidates)-1)))
-            chosen = candidates[index]
+            new_item = candidates[index]
             chest.tpt.argument = new_item.index
             chest.mutated = True
 
@@ -1422,36 +1424,6 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             assert self.tpt.argument == self.tpt.old_data["argument"]
             self.tpt.argument = i.index
             return
-
-        # Ancient Cave
-        if not hasattr(ItemObject, "done_ones"):
-            ItemObject.done_ones = set([])
-
-        cave_rank = self.cave_rank
-        if cave_rank is None:
-            return
-
-        if random.random() < (cave_rank ** 2):
-            candidates = [i for i in ItemObject.ranked
-                          if i.rank >= 0 and not i.is_buyable]
-        else:
-            candidates = [i for i in ItemObject.ranked if i.rank >= 0]
-
-        if (random.random()**4) > cave_rank:
-            temp = [c for c in candidates if c.is_equipment]
-            if temp:
-                cave_rank = cave_rank ** 0.75
-                candidates = temp
-
-        candidates = [c for c in candidates
-                      if not (c.limit_one and c.index in ItemObject.done_ones)]
-        index = int(round(cave_rank * (len(candidates)-1)))
-        chosen = candidates[index]
-        new_item = chosen.get_similar(candidates=candidates)
-
-        if new_item.limit_one:
-            ItemObject.done_ones.add(new_item.index)
-        self.tpt.argument = new_item.index
 
 
 class SpriteGroupObject(GetByPointerMixin, TableObject):
