@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 12.03
+VERSION = 12.04
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1398,12 +1398,12 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             chest.tpt.argument = new_item.index
             chest.mutated = True
         
-        # 3) Fill remaining chests
-        candidates =  [i for i in ItemObject.ranked if i.rank >= 0 and not i.is_equipment and not i.is_key_item]
+        # 3) Fill remaining chests - candidates are non-equipment, non-key-item, non-condiment
+        candidates =  [i for i in ItemObject.ranked if i.rank >= 0 and not i.is_equipment and not i.is_key_item and i.item_type != 0x28]
         candidates = shuffle_normal(candidates)
-        chests = cls.unassigned_chests
-        for chest in chests:
-            index = int(round(chest.cave_rank * (len(candidates)-1)))
+        chests = sorted(cls.unassigned_chests, key=lambda c: c.cave_rank)
+        for i, chest in enumerate(chests):
+            index = int(round(float(i) / len(chests) * (len(candidates)-1)))
             new_item = candidates[index]
             chest.tpt.argument = new_item.index
             chest.mutated = True
