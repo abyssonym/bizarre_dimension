@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 12.04
+VERSION = 12.05
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -376,6 +376,15 @@ class Script:
             (0x1f, 0x21, 0x66),
             (0x1f, 0x21, 0xA2),
             (0x1f, 0x21, 0xC4),
+            # Below are Moonside same-screen teleports
+            (0x1f, 0x21, 0x6A),
+            (0x1f, 0x21, 0x6B),
+            (0x1f, 0x21, 0x6C),
+            (0x1f, 0x21, 0x6F),
+            (0x1f, 0x21, 0x70),
+            (0x1f, 0x21, 0x71),
+            (0x1f, 0x21, 0x72),
+            (0x1f, 0x21, 0xE8),
             (0x1f, 0x21, 0xE9), # Unused value - for testing
             ]
         self.remove_instructions(keys, exceptions)
@@ -886,7 +895,7 @@ class AncientCave(TableObject):
             text_to_values("@Seed: %s" % get_seed()),
             (0x03, 0x00),
             text_to_values("@Flags: %s" % get_flags()),
-            #(0x1f, 0x21, 0xe9), # Teleport to test location 
+            (0x1f, 0x21, 0x6c), # Teleport to test location 
             (0x13, 0x02)]
         new_atm_help = Script.write_new_script(lines)
 
@@ -1349,12 +1358,11 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         # Ancient Cave
         # 0) Set non-in-cave chests to empty, for spoiler clarity
         # Also set chests that are unreachable to be empty
-        unaccessable_chests = [o for o in cls.every if o.is_chest and o.cave_rank is None and (not hasattr(o, "mutated") or not o.mutated)] 
-        unaccessable_chests += [
+        inaccessible_chests = [o for o in cls.every if o.is_chest and o.cave_rank is None and (not hasattr(o, "mutated") or not o.mutated)] 
+        inaccessible_chests += [
             cls.get(182), cls.get(135),                 # Dungeon man
-            cls.get(675), cls.get(706), cls.get(707)    # Moonside
             ]
-        for chest in unaccessable_chests:
+        for chest in inaccessible_chests:
             chest.tpt.argument = 0x100
             chest.mutated = True
 
@@ -1820,6 +1828,9 @@ class TeleportObject(TableObject):
             if self.index == 0xC4: # Ness's house
                 self.x = 954
                 self.y = 45
+            if self.index == 0xE8: # Moonside skipping chests
+                self.x = TeleportObject.get(0x70).x
+                self.y = TeleportObject.get(0x70).y
             if self.index == 0xE9: # Unused value - for testing
                 self.x = 57
                 self.y = 292
@@ -2548,6 +2559,11 @@ def generate_cave():
     strong = TPTObject.get(71)
     assert strong.address == 0xc7699e
     strong.address = 0xc76b0b
+
+    # Moonside right side #3 teleporter - return to central Moonside
+    teleporter = TPTObject.get(1383)
+    assert teleporter.address == 0xc96fe2
+    teleporter.address = 0xc96e22
 
     #for meo in MapEnemyObject.every:
     #    meo.cave_sanitize_events()

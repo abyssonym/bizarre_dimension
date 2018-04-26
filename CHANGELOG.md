@@ -2,6 +2,7 @@
 
 ## v13 (In progress)
 - Gift box contents: Completely new item distribution algorithm for Ancient Cave mode.
+- Ancient Cave: Moonside teleporters that go to gift box locations re-enabled. (You will not be teleported away from Moonside overworld.)
 ### Bugfixes
 - Ancient Cave: Softlock due to Captain Strong prevented.
 
