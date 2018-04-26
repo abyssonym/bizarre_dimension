@@ -1,6 +1,7 @@
 # Changelog
 
 ## v13 (In progress)
+- Gift box contents: Completely new item distribution algorithm for Ancient Cave mode.
 ### Bugfixes
 - Ancient Cave: Softlock due to Captain Strong prevented.
 

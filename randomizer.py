@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 12.01
+VERSION = 12.02
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1210,6 +1210,10 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     def after_order(self):
         return [PsiTeleportObject, AncientCave]
 
+    @classproperty
+    def unassigned_chests(cls):
+        return [o for o in cls.every if o.is_chest and o.cave_rank is not None and (not hasattr(o, "mutated") or not o.mutated)]
+
     def __repr__(self):
         return "{0:0>2} {1:0>2} {3:0>5} {2:0>4}".format(
             *["%x" % v for v in [self.x, self.y, self.tpt_number,
@@ -1217,6 +1221,8 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
 
     def serialize(self):
         result = {
+            "index": self.index,
+            "cave_rank": self.cave_rank,
             "x": self.global_x,
             "y": self.global_y,
         }
@@ -1330,15 +1336,76 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     @classmethod
     def mutate_all(cls):
         cls.class_reseed("mut")
-        objs = list(cls.every)
-        random.shuffle(objs)
-        for o in cls.every:
-            if hasattr(o, "mutated") and o.mutated:
-                continue
-            o.reseed(salt="mut")
-            o.mutate()
-            o.mutate_bits()
-            o.mutated = True
+        if 'a' not in get_flags():
+            for o in cls.every:
+                if hasattr(o, "mutated") and o.mutated:
+                    continue
+                o.reseed(salt="mut")
+                o.mutate()
+                o.mutate_bits()
+                o.mutated = True
+            
+        # Ancient Cave
+        # 0) Set non-in-cave chests to empty, for spoiler clarity
+        # Also set chests that are unreachable to be empty
+        unaccessable_chests = [o for o in cls.every if o.is_chest and o.cave_rank is None and (not hasattr(o, "mutated") or not o.mutated)] 
+        unaccessable_chests += [
+            cls.get(182), cls.get(135),                 # Dungeon man
+            cls.get(675), cls.get(706), cls.get(707)    # Moonside
+            ]
+        for chest in unaccessable_chests:
+            chest.tpt.argument = 0x100
+            chest.mutated = True
+
+        # 1) Place skip-granting items early in the cave
+        early_items_index = [
+            0xa6,   # King banana
+            0xaa,   # Key to the shack
+            0xb8,   # Pencil eraser
+            0xd2,   # Eraser eraser
+            0xfd,   # Carrot key
+        ]
+        early_chests = sorted(cls.unassigned_chests, key=lambda c: c.cave_rank)
+        early_chests = early_chests[:len(early_chests)/3]
+        chosen = random.sample(early_chests, len(early_items_index))
+        for chest, item_index in zip(chosen, early_items_index):
+            chest.tpt.argument = item_index
+            chest.mutated = True
+
+        # 2) Fill up to 60% of remaining chests with equipment
+        equipment_once = [i for i in ItemObject.ranked if i.rank >= 0 and i.is_equipment]
+        equipment = []
+        for item in equipment_once:
+            equipment.append(item)
+            if not item.limit_one:
+                equipment.append(item)
+                equipment.append(item)
+        franklin_badge = ItemObject.get(0x01)
+        equipment.insert(int(len(equipment) * 0.3), franklin_badge)
+        equipment.insert(int(len(equipment) * 0.7), franklin_badge)
+        
+        chests = cls.unassigned_chests
+        reduced_equipment_count = int(len(chests) * 0.6)
+        if reduced_equipment_count < len(equipment):
+            reduced_equipment_indexes = random.sample(range(len(equipment)), reduced_equipment_count)
+            equipment = [equipment[i] for i in sorted(reduced_equipment_indexes)]
+
+        chosen = sorted(random.sample(chests, len(equipment)), key=lambda c: c.cave_rank)
+        equipment = shuffle_normal(equipment)
+        for chest, new_item in zip(chosen, equipment):
+            chest.tpt.argument = new_item.index
+            chest.mutated = True
+        
+        # 3) Fill remaining chests
+        candidates =  [i for i in ItemObject.ranked if i.rank >= 0 and not i.is_equipment and not i.is_key_item]
+        candidates = shuffle_normal(candidates)
+        chests = cls.unassigned_chests
+        for chest in chests:
+            index = int(round(chest.cave_rank * (len(candidates)-1)))
+            chosen = candidates[index]
+            chest.tpt.argument = new_item.index
+            chest.mutated = True
+
 
     def mutate(self):
         if not self.is_chest:
