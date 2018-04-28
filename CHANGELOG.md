@@ -4,10 +4,11 @@
 - Gift box contents: Completely new item distribution algorithm for Ancient Cave mode.
 - Ancient Cave: Moonside teleporters that go to gift box locations re-enabled. (You will not be teleported away from Moonside overworld.)
 ### Bugfixes
-- Ancient Cave: Softlock due to Captain Strong prevented.
+- Ancient Cave: Softlock causing events disabled: Captain Strong, Bubble Monkey, Sky Runner.
+- Ancient Cave: Big Foot store will appear in Andonuts' lab.
 
 ## v12 (2018-04-21)
-- PC sprites: New method of randomizing allows for much wider variety of sprites to appear
+- PC sprites: New method of randomizing allows for much wider variety of sprites to appear.
 ### Bugfixes
 - Ancient Cave: Logic errors that caused occasional incorrect enemies to appear in Electro Specter cave areas fixed.
 

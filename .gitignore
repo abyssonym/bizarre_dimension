@@ -3,7 +3,12 @@ maps/
 working/
 build/
 dist/
-fullmap.png
+*.bak
+*.bst
+*.png
+*.bin
 *.smc
 *.spec
+*.srm
 *.spoiler.json
+*.sym

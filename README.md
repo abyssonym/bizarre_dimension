@@ -14,13 +14,17 @@ Most flags are self-explanatory, but additional details for some modes are inclu
 
 ## Ancient Cave mode – `a`
 
-Ancient Cave mode completely changes how the game is played. Instead of proceeding through the normal storyline of EarthBound, all rooms and doors have been shuffled around into a multi-level maze. You start with all four party members, and your goal is to proceed through all 8 levels of the maze, each level guarded by a Shiny Spot, and reach and defeat Giygas. Enemy spawn locations grow in difficulty as you proceed deeper into the maze.
+Ancient Cave mode completely changes how the game is played. Instead of proceeding through the normal storyline of EarthBound, all rooms and doors have been shuffled around into a multi-level maze. You start with all four party members, and your goal is to proceed through all 8 levels of the maze, each level guarded by a Shiny Spot, and reach and defeat Giygas. Enemy spawn locations grow in difficulty as you proceed deeper into the maze, as do gift box rewards (if randomize gift box contents is on, which is recommended).
 
-You will not have to do any storyline events, like riding the Sky Runner or beating Carpainter, to beat the game in this mode. Often, you can do story events to "skip" deeper into the cave. Use common sense when taking skips, as some may break the game; giving an item to a monkey in Monkey Cave is safe, for example, while riding the Sky Runner is almost definitely not.
+You will not have to do any storyline events, like riding the Sky Runner or beating Carpainter, to beat the game in this mode. Often, you can do story events to "skip" around in the cave. This may take you much deeper into the maze. Use common sense when taking skips, as some may break the game; giving an item to a monkey in Monkey Cave is safe, for example, while riding the bus is often not. If you take no skips, you will encounter each of the 8 shiny spots before reaching Giygas.
+
+Known skips:
+- Any of the Monkey Cave monkeys who want items
+- Having a theater ticket attendant move out of the way
+- Removing pencil, eraser, or rabbit statues
+- Riding the bus (dangerous, can lock game)
 
 ## Keysanity mode – `k`
-
-**WARNING**: This mode is currently in beta test, and may not fully work correctly. Any feedback on problems encountered would be helpful.
 
 Keysanity mode also radically changes how the game is played. 15 different key items have been shuffled around throughout the world; Mayor Pirkle may give you the Bicycle, while the Bike Shop guy may give you the Carrot key. To help you on this more complicated quest, however, Ness already knows PSI Teleport, and all available teleport locations are unlocked at the start of the game (including bonus teleports to South Winters and North Onett). Your goal is to beat the game as normal, but getting to all 8 Your Sanctuary locations will be more of a challenge.
 
@@ -51,7 +55,7 @@ Keysanity mode is incompatible with Ancient Cave mode, and if both modes are sel
 
 ## Gift box contents – `g`
 
-Randomizing gift box contents works differently in Ancient Cave mode and in non-Ancient Cave mode. In Ancient Cave mode, gift boxes will (typically) increase in value as you proceed deeper into the cave. Almost anything could be in one of the gift boxes, including a key item (such as the Pencil Eraser) that may allow you to perform skips at various points in the cave.
+Randomizing gift box contents works differently in Ancient Cave mode and in non-Ancient Cave mode. In Ancient Cave mode, gift boxes will generally increase in value as you proceed deeper into the cave. About 60% of the gift boxes will be equipment. In early levels of the cave, you may get "skip-enabling" items such as the Pencil Eraser that could allow you to skip around in the cave.
 
 In non-Ancient Cave mode, gift boxes will be replaced with an item that is similar in value to their contents in the normal game. However, every gift box has a 20% chance of being replaced by an item of any value, so there is a chance you could get a very good item very early.
 
