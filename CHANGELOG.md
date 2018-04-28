@@ -1,6 +1,6 @@
 # Changelog
 
-## v13 (In progress)
+## v13 (2018-04-28)
 - Gift box contents: Completely new item distribution algorithm for Ancient Cave mode.
 - Ancient Cave: Moonside teleporters that go to gift box locations re-enabled. (You will not be teleported away from Moonside overworld.)
 ### Bugfixes
