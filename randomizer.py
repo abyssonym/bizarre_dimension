@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 12.05
+VERSION = 12.06
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -895,7 +895,7 @@ class AncientCave(TableObject):
             text_to_values("@Seed: %s" % get_seed()),
             (0x03, 0x00),
             text_to_values("@Flags: %s" % get_flags()),
-            (0x1f, 0x21, 0x6c), # Teleport to test location 
+            #(0x1f, 0x21, 0xe9), # Teleport to test location 
             (0x13, 0x02)]
         new_atm_help = Script.write_new_script(lines)
 
@@ -1370,7 +1370,6 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         early_items_index = [
             0x7d,   # Backstage pass
             0xa6,   # King banana
-            0xaa,   # Key to the shack
             0xb8,   # Pencil eraser
             0xd2,   # Eraser eraser
             0xfd,   # Carrot key
@@ -1832,8 +1831,8 @@ class TeleportObject(TableObject):
                 self.x = TeleportObject.get(0x70).x
                 self.y = TeleportObject.get(0x70).y
             if self.index == 0xE9: # Unused value - for testing
-                self.x = 57
-                self.y = 292
+                self.x = 989
+                self.y = 363
 
 class ZoneMixin(GridMixin):
     rows = 40
@@ -2564,6 +2563,23 @@ def generate_cave():
     teleporter = TPTObject.get(1383)
     assert teleporter.address == 0xc96fe2
     teleporter.address = 0xc96e22
+
+    # Bubble Monkey - prevent joining
+    bubble_monkey = Script.get_by_pointer(0x6af6c)
+    assert tuple(bubble_monkey.lines[0]) == (
+        0x1D, 0x05, 0xFF, 0x68)
+    bubble_monkey.lines = bubble_monkey.lines[2:]
+    bubble_monkey.write_script()
+
+    # Andonuts - prevent activating Sky Runner
+    andonuts_tpt = TPTObject.get(0x267)
+    assert andonuts_tpt.address == 0xc6b18d
+    andonuts_tpt.address = 0xc6b4bb
+
+    # Big Foot - always appear
+    bigfoot = TPTObject.get(0x26b)
+    assert bigfoot.address == 0xc6504b
+    bigfoot.flag = TPTObject.get(0x05).flag
 
     #for meo in MapEnemyObject.every:
     #    meo.cave_sanitize_events()
