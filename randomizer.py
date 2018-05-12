@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 13.03
+VERSION = 13.04
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -2580,6 +2580,15 @@ def generate_cave():
     bigfoot = TPTObject.get(0x26b)
     assert bigfoot.address == 0xc6504b
     bigfoot.flag = TPTObject.get(0x05).flag
+
+    # War against Giygas is over - go to credits
+    war_over = Script.get_by_pointer(0x9c293)
+    assert len(war_over.lines) == 273
+    war_over.lines = war_over.lines[:69]
+    war_over.lines.append([0x1f, 0x00, 0x00, random.randint(1, 191)])   # Music
+    war_over.lines.append([0x1f, 0x41, 0x0c])                           # Credits
+    war_over.lines.append(ccode_goto_address(0x9C96E))                  # The End
+    war_over.write_script()
 
     #for meo in MapEnemyObject.every:
     #    meo.cave_sanitize_events()
