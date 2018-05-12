@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 13
+VERSION = 13.01
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -3149,17 +3149,17 @@ class PsiTeleportObject(TableObject):
         if 'a' in get_flags():
             return # Disable Keysanity if Ancient Cave on
         if len(self.name) > 0:
-            self.flag = 0xd1 # Onett discovered
+            self.flag = 0xd9 # Pyramid entrance ready
         if self.index == 13: # Add South Winters teleport
             self.name_text = text_to_bytes("South Winters", 25)
             self.x = 26
             self.y = 595
-            self.flag = 0xd1 # Onett discovered
+            self.flag = 0xd9 # Pyramid entrance ready
         if self.index == 15: # Add North Onett teleport
             self.name_text = text_to_bytes("North Onett", 25)
             self.x = 322
             self.y = 54
-            self.flag = 0xd1 # Onett discovered
+            self.flag = 0xd9 # Pyramid entrance ready
 
             
     @classmethod
@@ -3262,12 +3262,11 @@ class PsiTeleportObject(TableObject):
         # Patch intro script to set Onett flag immediately
         intro = Script.get_by_pointer(0x5e70b)
         patch_lines = intro.lines[:2] + [
-            (0x04, 0xd1, 0x00), # Enable Onett teleport
-            (0x04, 0xd9, 0x00), # Enable Pyramid entrance
+            (0x04, 0xd9, 0x00), # Enable Pyramid entrance and all teleports
             (0x04, 0x8c, 0x00), # Enable Venus giving item
             (0x02, )]
         patch = Script.write_new_script(patch_lines)
-        assert patch.length == 16
+        assert patch.length == 13
         intro.lines = [ccode_call_address(patch.pointer)] + [(0x00, )] + intro.lines[2:]
         intro.write_script()
 

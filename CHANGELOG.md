@@ -1,4 +1,7 @@
 # Changelog
+## v13 (In Progress)
+### Bugfixes
+- Keysanity: Ness's house lights now behave as normal.
 
 ## v13 (2018-04-28)
 - Gift box contents: Completely new item distribution algorithm for Ancient Cave mode.
