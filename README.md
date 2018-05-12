@@ -59,6 +59,16 @@ Randomizing gift box contents works differently in Ancient Cave mode and in non-
 
 In non-Ancient Cave mode, gift boxes will be replaced with an item that is similar in value to their contents in the normal game. However, every gift box has a 20% chance of being replaced by an item of any value, so there is a chance you could get a very good item very early.
 
+## PC and NPC sprites – `p` and `n`
+
+A special note should be made when playing with these flags enabled in non-Ancient-Cave modes, either Keysanity or "normal" EarthBound: There are a few scripted events that are bugged when these flags are used. It will appear that the game is softlocked, but usually it will proceed after waiting 5-10 minutes. (Usually an NPC is walking all the way across the entire world map after spawning at an incorrect location.)
+
+While they won't actually lock your game, these bugs are obviously annoying, so you may want to not use these flags if you are playing a non-Ancient-Cave mode. If you do encounter one of these situations, let us know where it is, as we would like to eventually fix all of them.
+
+Currently known bugged events:
+- Post Twoson show
+- Delivering the Diamond on the bridge
+
 ## Run button patch
 
 Bizarre Dimension includes a patch that adds a run button to the game. Holding `Y` will make the characters run as if they had used a Skip Sandwich. If you do not want this feature, follow the instructions in the program to disable it.
@@ -73,9 +83,8 @@ There are a few special codes you can enter along with the flags. For example, t
 
 ## Known issues
 
-- Occasionally, dying can cause the screen to go black and not return, while you can hear music and sound effects as normal. Regularly save so you can reload if this occurs. Also, you can try to walk around and hope to walk through a door to reset the screen. More information about this is needed to debug it.
-- More instances of an equippable item than can be used can be generated.
-- Possible Lost World "geyser softlock" in AC mode. More information is needed.
+- Occasionally, dying can cause the screen to go black and not return, while you can hear music and sound effects as normal. Regularly save so you can reload if this occurs. Also, you can try to walk around and hope to walk through a door to reset the screen. This is related to a base-game bug, probably involving spawns being off in some way. More information about this is needed to debug it.
+- Possible Lost World "geyser softlock" in Ancient Cave mode. More information is needed.
 
 ## Contact
 
