@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 13.02
+VERSION = 13.03
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1375,7 +1375,7 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             0xfd,   # Carrot key
         ]
         early_chests = sorted(cls.unassigned_chests, key=lambda c: c.cave_rank)
-        early_chests = early_chests[:len(early_chests)/3]
+        early_chests = early_chests[:len(early_chests)/3 * 2]
         chosen = random.sample(early_chests, len(early_items_index))
         for chest, item_index in zip(chosen, early_items_index):
             chest.tpt.argument = item_index
