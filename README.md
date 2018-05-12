@@ -68,6 +68,7 @@ While they won't actually lock your game, these bugs are obviously annoying, so 
 Currently known bugged events:
 - Post Twoson show
 - Delivering the Diamond on the bridge
+- Defeating Clumsy Robot (possibly a true softlock?)
 
 ## Run button patch
 

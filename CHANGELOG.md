@@ -1,5 +1,5 @@
 # Changelog
-## v14 (In Progress)
+## v14 (2018-05-12)
 - Ancient Cave: Credits roll at end of game (with random music, because why not).
 ### Bugfixes
 - Keysanity: Ness's house lights now behave as normal.
