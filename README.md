@@ -20,8 +20,12 @@ You will not have to do any storyline events, like riding the Sky Runner or beat
 
 Known skips:
 - Any of the Monkey Cave monkeys who want items
-- Having a theater ticket attendant move out of the way
+- Having a theater ticket attendant move out of the way, in either direction
 - Removing pencil, eraser, or rabbit statues
+- Getting abducted by ghosts in the tunnels
+- Giving the Tiny Ruby to the museum guard
+- Getting teleported by Carpainter's lightning
+- Entering Dungeon Man
 - Riding the bus (dangerous, can lock game)
 
 ## Keysanity mode – `k`
