@@ -2,6 +2,7 @@
 ## v13 (In Progress)
 ### Bugfixes
 - Keysanity: Ness's house lights now behave as normal.
+- Ancient Cave: Further logic errors that caused occasional incorrect enemies to appear in Electro Specter cave areas fixed.
 
 ## v13 (2018-04-28)
 - Gift box contents: Completely new item distribution algorithm for Ancient Cave mode.
