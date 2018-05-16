@@ -1,4 +1,8 @@
 # Changelog
+## v15 (In Progress)
+### Bugfixes
+- Normal mode: Keysanity special fixes no longer applied.
+
 ## v14 (2018-05-12)
 - Ancient Cave: Credits roll at end of game (with random music, because why not).
 ### Bugfixes

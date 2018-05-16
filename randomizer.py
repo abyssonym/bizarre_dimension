@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 14
+VERSION = 14.01
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -3259,6 +3259,10 @@ class PsiTeleportObject(TableObject):
     def full_cleanup(cls):
         if 'a' in get_flags():
             print "WARNING: Keysanity and Ancient Cave modes are incompatible. Keysanity has been disabled."
+            super(PsiTeleportObject, cls).full_cleanup()
+            return
+
+        if 'k' not in get_flags():
             super(PsiTeleportObject, cls).full_cleanup()
             return
 
