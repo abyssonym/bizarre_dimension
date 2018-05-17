@@ -1510,7 +1510,8 @@ class TPTObject(TableObject):
 
     def mutate(self):
         chests = [33, 195, 214, 233, 262, 322, 408]
-        tpt_exclusions = [198] # Meteorite (causes Buzz Buzz scene problems)
+        tpt_exclusions = [198, # Meteorite (causes Buzz Buzz scene problems)
+            884] # Runaway 5 in Clumsy room (causes softlock)
         sprite_exclusions = [0, 106, 200, 247, 295, 314, 316, 368,
             369, 371, 373, 374, 375, 376, 381, 410, 420, 428, 430, 431, 439,
             440, 441, 456, 462, 463,
