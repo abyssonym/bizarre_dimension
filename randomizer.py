@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 14.01
+VERSION = 14.02
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1530,6 +1530,14 @@ class TPTObject(TableObject):
         current_sprite = SpriteGroupObject.get(self.sprite)
         candidates = [sg for sg in SpriteGroupObject.every if current_sprite.valid_swap(sg, sprite_exclusions)]
         self.sprite = random.choice(candidates).index
+
+        # Special fixes
+        if self.index == 795: # Backhoe on bridge
+            f = open(get_outfile(), "r+b")
+            f.seek(0x307AF)
+            f.write(chr(self.sprite % 256))
+            f.write(chr(self.sprite / 256))
+            f.close()
     
     def cleanup(self):
         if 'a' in get_flags() and self.address == 0xc75909:

@@ -2,6 +2,7 @@
 ## v15 (In Progress)
 ### Bugfixes
 - Normal mode: Keysanity special fixes no longer applied.
+- NPC sprites: Fixed glitch with Diamond-granting scene.
 
 ## v14 (2018-05-12)
 - Ancient Cave: Credits roll at end of game (with random music, because why not).
