@@ -1,5 +1,6 @@
 # Changelog
 ## v15 (In Progress)
+- Ancient Cave: DDD Mine dug out (fixes potential routing bug).
 ### Bugfixes
 - Normal mode: Keysanity special fixes no longer applied.
 - NPC sprites: Fixed glitches with Diamond-granting cutscene and post-Clumsy cutscene.

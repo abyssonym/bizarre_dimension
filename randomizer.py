@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 14.03
+VERSION = 14.04
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -903,7 +903,7 @@ class AncientCave(TableObject):
             text_to_values("@Seed: %s" % get_seed()),
             (0x03, 0x00),
             text_to_values("@Flags: %s" % get_flags()),
-            #(0x1f, 0x21, 0xe9), # Teleport to test location 
+            (0x1f, 0x21, 0xe9), # Teleport to test location 
             (0x13, 0x02)]
         new_atm_help = Script.write_new_script(lines)
 
@@ -1849,8 +1849,8 @@ class TeleportObject(TableObject):
                 self.x = TeleportObject.get(0x70).x
                 self.y = TeleportObject.get(0x70).y
             if self.index == 0xE9: # Unused value - for testing
-                self.x = 989
-                self.y = 363
+                self.x = 492
+                self.y = 1210
 
 class ZoneMixin(GridMixin):
     rows = 40
@@ -2522,6 +2522,7 @@ def generate_cave():
         (0x04, 0x05, 0x02),     # turn on lights at home
         (0x04, 0xD5, 0x01),     # Mom heal part 1
         (0x04, 0x5E, 0x00),     # Mom heal part 2
+        (0x04, 0xAE, 0x00),     # hole dug in dusty dunes
 
         #(0x04, 0x74, 0x01),     # become robots
 
