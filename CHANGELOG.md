@@ -1,5 +1,5 @@
 # Changelog
-## v15 (In Progress)
+## v15 (2018-05-19)
 - Ancient Cave: DDD Mine dug out (fixes potential routing bug).
 ### Bugfixes
 - Normal mode: Keysanity special fixes no longer applied.
