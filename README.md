@@ -49,7 +49,7 @@ The list of items that have had their locations shuffled in this mode is as foll
 - Tendakraut - but the Tendakraut has been transformed into a Jar of Fly Honey
 - Suporma - but the Suporma has been transformed into a Meteorite piece
 
-Because you can get a Jar of Fly Honey through one of these 14 locations, it is not necessary to do the Jeff-alone-in-Winters part of the storyline. However, you can still do so if you wish, as the Boogey Tent will still contain a Jar of Fly Honey as well.
+Because you can get a Jar of Fly Honey through one of these 15 locations, it is not necessary to do the Jeff-alone-in-Winters part of the storyline. However, you can still do so if you wish, as the Boogey Tent will still contain a Jar of Fly Honey as well.
 
 Be careful with how you proceed through storyline events! If you take a very unusual order, it is possible you may lock yourself out of having a character available until you complete Magicant. Since you can teleport anywhere instantly, you can get the game into very unusual states; this is expected and encouraged to take advantage of to get a lower time.
 
@@ -88,7 +88,6 @@ There are a few special codes you can enter along with the flags. For example, t
 
 ## Known issues
 
-- Occasionally, dying can cause the screen to go black and not return, while you can hear music and sound effects as normal. Regularly save so you can reload if this occurs. Also, you can try to walk around and hope to walk through a door to reset the screen. This is related to a base-game bug, probably involving spawns being off in some way. More information about this is needed to debug it.
 - Possible Lost World "geyser softlock" in Ancient Cave mode. More information is needed.
 
 ## Contact
