@@ -3,6 +3,7 @@
 ### Bugfixes
 - Normal mode: Keysanity special fixes no longer applied.
 - NPC sprites: Fixed glitches with Diamond-granting cutscene and post-Clumsy cutscene.
+- Ancient Cave: Fixed bug involving status effects turned off and softlocks on scripted encounter death.
 
 ## v14 (2018-05-12)
 - Ancient Cave: Credits roll at end of game (with random music, because why not).
