@@ -74,6 +74,10 @@ Currently known bugged events:
 - Delivering the Diamond on the bridge
 - Defeating Clumsy Robot (possibly a true softlock?)
 
+## Backgrounds – `b`
+
+Our method of randomizing the battle backgrounds often leads to extremely good-looking results, but rarely, there will be a bright flashing palette used. If you are sensitive to bright flashing lights causing epilepsy or seizures, you may not want to enable this mode.
+
 ## Run button patch
 
 Bizarre Dimension includes a patch that adds a run button to the game. Holding `Y` will make the characters run as if they had used a Skip Sandwich. If you do not want this feature, follow the instructions in the program to disable it.
