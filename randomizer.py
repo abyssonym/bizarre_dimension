@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 15.01
+VERSION = 15.02
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1772,7 +1772,12 @@ class MapEnemyObject(GridMixin, TableObject):
         assert 'a' in get_flags()
 
         # ANCIENT CAVE
+        if not EnemyPlaceObject.recreated:
+            print "Recreating enemy placement groups..."
+            EnemyPlaceObject.recreate()
+
         if self.cave_rank is None:
+            self.enemy_place_index = 0
             return
 
         if not self.enemy_adjacent and random.random() > get_random_degree():
@@ -1796,7 +1801,15 @@ class MapEnemyObject(GridMixin, TableObject):
         index = max(index, 1)
 
         chosen = EnemyPlaceObject.valid_ranked_placements[index]
+        if chosen.odds[0] == 0:
+            print "Why?"
+            print chosen
+            print index
         chosen = chosen.get_similar()
+        if chosen.odds[0] == 0:
+            print "Why2?"
+            print chosen
+            print index
         self.enemy_place_index = chosen.index
 
     def cleanup(self):
@@ -2673,6 +2686,9 @@ def replace_sanctuary_bosses():
 
 
 class EnemyPlaceObject(TableObject):
+    recreated = False
+    _write_pointer = None
+
     @classproperty
     def after_order(self):
         return [BattleEntryObject]
@@ -2735,27 +2751,97 @@ class EnemyPlaceObject(TableObject):
                 if sum(self.odds[i]) == 8:
                     break
         f.close()
+    
+    def write_data(self, filename=None, pointer=None, syncing=False):
+        if not EnemyPlaceObject.recreated:
+            return
+        if EnemyPlaceObject._write_pointer is None:
+            EnemyPlaceObject._write_pointer = self.placement_group_pointer & 0x3FFFFF
+        else:
+            self.placement_group_pointer = EnemyPlaceObject._write_pointer | 0xC00000
+        
+        f = open(filename, "r+b")
+        f.seek(EnemyPlaceObject._write_pointer)
+        write_multi(f, self.event_flag, length=2)
+        for rate in self.sub_group_rates:
+            f.write(chr(rate))
+        for i, rate in enumerate(self.sub_group_rates):
+            if rate == 0:
+                continue
+            if sum(self.odds[i]) < 8:
+                raise Exception("Invalid subgroup odds")
+            for prob, battle_entry in zip(self.odds[i], self.battle_entries[i]):
+                f.write(chr(prob))
+                write_multi(f, battle_entry.index, length=2)
 
-    @cached_property
+        EnemyPlaceObject._write_pointer = f.tell()
+        if EnemyPlaceObject._write_pointer > 0x10c60d:
+            raise Exception("EnemyPlaceObject data too long")
+        f.close()
+        super(EnemyPlaceObject, self).write_data(filename, pointer, syncing)
+
+    
+    @classmethod
+    def recreate(cls):
+        # All of the potential sets of enemies used in the existing placements
+        mobs = set(reduce((lambda x, y: x + reduce(lambda a, b: a + b, y.itervalues(), [])), map(lambda x: x.battle_entries, EnemyPlaceObject.every), []))
+        mobs.remove(BattleEntryObject.get(0x0))
+        mobs = sorted(mobs, reverse=True)
+        butterfly = mobs.pop()
+        mobs = shuffle_normal(mobs)
+        butterfly_place = EnemyPlaceObject.valid_ranked_placements[0]
+
+        for place in EnemyPlaceObject.every:
+            #Erase rank cache
+            place._rank = None
+            # Save the 0-index object as it is the magical no-enemy object
+            if place.index == 0:
+                continue
+            # Save the Magic Butterfly alone object
+            if place == butterfly_place:
+                continue
+            # Create a basic enemy placement. No flags, high chance of encounter, even odds of 4 enemies
+            place.event_flag = 0
+            place.sub_group_rates[1] = 0
+            if len(mobs) == 0:
+                place.odds = { 0: [], 1: [] }
+                place.sub_group_rates[0] = 0
+                continue 
+                
+            place.sub_group_rates[0] = random.randint(50,100)
+            place.odds = { 0: [2, 2, 2, 2], 1: [] }
+            place.battle_entries = defaultdict(list)
+            for i in xrange(4):
+                place.battle_entries[0].append(mobs.pop() if len(mobs) else butterfly)
+
+        # Erase current rank info
+        EnemyPlaceObject._valid_ranked_placements = None
+        c = EnemyPlaceObject.ranked
+        EnemyPlaceObject.recreated = True
+
+    @property
     def rank(self):
+        if hasattr(self, "_rank") and self._rank is not None:
+            return self._rank
         if self.index == 0:
-            return -1
+            self._rank = -1
+            return self.rank
 
         if 0 not in self.sub_group_rates or self.sub_group_rates[0] == 0:
-            return -1
-
-        #if sum(self.sub_group_rates.values()) == 0:
-        #    return -1
+            self._rank = -1
+            return self.rank
 
         try:
-            return max([beo.rank for i in self.battle_entries.keys()
+            self._rank = max([beo.rank for i in self.battle_entries.keys()
                         for beo in self.battle_entries[i]])
+            return self.rank
         except ValueError:
-            return -1
+            self._rank = -1
+            return self.rank
 
     @classproperty
     def valid_ranked_placements(cls):
-        if hasattr(EnemyPlaceObject, "_valid_ranked_placements"):
+        if hasattr(EnemyPlaceObject, "_valid_ranked_placements") and EnemyPlaceObject._valid_ranked_placements is not None:
             return EnemyPlaceObject._valid_ranked_placements
 
         EnemyPlaceObject._valid_ranked_placements = [

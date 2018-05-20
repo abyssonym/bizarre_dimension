@@ -1,5 +1,6 @@
 # Changelog
 ## v16 (In Progress)
+- Ancient Cave: New spawn plate enemy group generation. (Experimental)
 - Enemy stats: Friendly NPCs removed from stat intershuffle.
 
 ## v15 (2018-05-19)
