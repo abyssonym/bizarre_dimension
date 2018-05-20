@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 15
+VERSION = 15.01
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -3053,8 +3053,12 @@ class EnemyObject(TableObject):
         return self.boss_flag or self.death_sound
 
     @property
+    def is_npc(self):
+        return not self.is_boss and self.out_of_battle_sprite == 0
+
+    @property
     def intershuffle_valid(self):
-        return not self.is_boss
+        return not self.is_boss and not self.is_npc
 
     @property
     def name(self):

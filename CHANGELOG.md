@@ -1,4 +1,7 @@
 # Changelog
+## v16 (In Progress)
+- Enemy stats: Friendly NPCs removed from stat intershuffle.
+
 ## v15 (2018-05-19)
 - Ancient Cave: DDD Mine dug out (fixes potential routing bug).
 ### Bugfixes
