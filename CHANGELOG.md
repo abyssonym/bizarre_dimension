@@ -2,6 +2,8 @@
 ## v16 (In Progress)
 - Ancient Cave: New spawn plate enemy group generation. (Experimental)
 - Enemy stats: Friendly NPCs removed from stat intershuffle.
+### Bugfixes
+- Ancient Cave: Logic errors that caused occasional incorrect enemies to appear in Fourside fixed.
 
 ## v15 (2018-05-19)
 - Ancient Cave: DDD Mine dug out (fixes potential routing bug).
