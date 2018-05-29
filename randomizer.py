@@ -1801,15 +1801,7 @@ class MapEnemyObject(GridMixin, TableObject):
         index = max(index, 1)
 
         chosen = EnemyPlaceObject.valid_ranked_placements[index]
-        if chosen.odds[0] == 0:
-            print "Why?"
-            print chosen
-            print index
         chosen = chosen.get_similar()
-        if chosen.odds[0] == 0:
-            print "Why2?"
-            print chosen
-            print index
         self.enemy_place_index = chosen.index
 
     def cleanup(self):
