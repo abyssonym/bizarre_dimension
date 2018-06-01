@@ -15,7 +15,7 @@ from array import array
 import json
 
 
-VERSION = 15.03
+VERSION = 15.04
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
@@ -1483,7 +1483,7 @@ class SpriteGroupObject(GetByPointerMixin, TableObject):
             return
         if self.index not in [1, 2, 3, 4]: # Only randomize 4 main PCs
             return
-        candidates = [sg for sg in SpriteGroupObject.every if self.size == self.size and self.collision == sg.collision] # Different than normal valid_swap
+        candidates = [sg for sg in SpriteGroupObject.every if self.size == sg.size and self.collision == sg.collision] # Different than normal valid_swap
         chosen = random.choice(candidates)
         self.copy_data(chosen)
         #self.collision_ns_w = self.old_data["collision_ns_w"]
@@ -3374,7 +3374,7 @@ class PsiTeleportObject(TableObject):
         bubble_monkey_rope.lines = lines[:1] + lines[-2:]
         bubble_monkey_rope.write_script()
 
-        # Patch intro script to set Onett flag immediately
+        # Patch intro script to set all teleports available immediately
         intro = Script.get_by_pointer(0x5e70b)
         patch_lines = intro.lines[:2] + [
             (0x04, 0xd9, 0x00), # Enable Pyramid entrance and all teleports
