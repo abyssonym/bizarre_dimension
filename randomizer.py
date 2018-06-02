@@ -2605,6 +2605,10 @@ def generate_cave():
     assert bigfoot.address == 0xc6504b
     bigfoot.flag = TPTObject.get(0x05).flag
 
+    # Shark guarding Frank - always fight
+    shark = TPTObject.get(0x1)
+    shark.address = shark.address + 14
+
     # War against Giygas is over - go to credits
     war_over = Script.get_by_pointer(0x9c293)
     assert len(war_over.lines) == 273

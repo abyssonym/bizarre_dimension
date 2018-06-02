@@ -4,6 +4,7 @@
 - Enemy stats: Friendly NPCs removed from stat intershuffle.
 ### Bugfixes
 - Ancient Cave: Logic errors that caused occasional incorrect enemies to appear in Fourside fixed.
+- Ancient Cave: Potential softlock from Frank-guarding Shark fixed.
 
 ## v15 (2018-05-19)
 - Ancient Cave: DDD Mine dug out (fixes potential routing bug).
