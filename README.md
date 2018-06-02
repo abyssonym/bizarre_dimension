@@ -1,5 +1,7 @@
 # Bizarre Dimension – EarthBound Ancient Cave Randomizer
 
+NOTE: I (pickfifteen) have suspended development on this fork of Bizarre Dimension, and have ported all features thus far to the new browser-based, online [EarthBound Randomizer](https://github.com/pickfifteen/eb-randomizer) available at https://earthbound.app. Many thanks to Abyssonym for the original creation of Bizarre Dimension and the blessing to port it and his framework to allow for this new online randomizer. 
+
 Bizarre Dimension is a program that randomizes a ROM for the Super Nintendo game EarthBound, providing endless unique gameplay experiences with many distinct modes.
 
 Windows users can simply download the `eb_bizarre_dimension.exe` file and run it; other platforms can run `randomizer.py` with Python 2. You will need to provide a ROM file of EarthBound; we will not provide this file. When you run the program, it will first ask for the location of this file; simply put the file in the same directory as the program and enter the filename.
