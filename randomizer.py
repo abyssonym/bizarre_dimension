@@ -11,19 +11,28 @@ from collections import defaultdict
 from os import path
 from time import time, sleep
 from collections import Counter
+from array import array
+import json
 
 
-VERSION = 0
+VERSION = 15.04
 ALL_OBJECTS = None
 DEBUG_MODE = False
 TEXT_MAPPING = {}
+TEXT_INVERSE_MAPPING = []
+
+
+hexify = lambda x: "{0:0>2}".format("%x" % x)
+numify = lambda x: "{0: >3}".format(x)
+minmax = lambda x: (min(x), max(x))
 
 
 text_map_filename = path.join(tblpath, "text_mapping.txt")
 for line in open(text_map_filename):
-    line = line.strip("\n")
+    line = line.strip("\n").strip("\r")
     code, text = line.split("=", 1)
     TEXT_MAPPING[int(code, 0x10)] = text
+    TEXT_INVERSE_MAPPING.append((text, [int(a, 0x10) for a in map(''.join, zip(*[iter(code)]*2))]))
 TEXT_MAPPING[0] = None
 
 
@@ -85,6 +94,56 @@ def bytes_to_text(s):
         s = s[len(key):]
     return result
 
+def value_to_text(value):
+    if value not in TEXT_MAPPING:
+        return None
+    return TEXT_MAPPING[value]
+
+def values_to_text(values):
+    result = ""
+    while values:
+        if len(values) > 1:
+            text = value_to_text(values[0] * 256 + values[1])
+            if text is not None:
+                result += text
+                values = values[2:]
+                continue
+        text = value_to_text(values[0])
+        if text is None:
+            raise Exception("Value %x not valid text." % values[0])
+        result += text
+        values = values[1:]
+    return result
+
+def text_to_values(s, allow_multi=True):
+    result = []
+    mapping = [i for i in TEXT_INVERSE_MAPPING if allow_multi or len(i[0]) == 1]
+    while s:
+        found = False
+        for text, codes in mapping:
+            if s.startswith(text):
+                result.extend(codes)
+                s = s[len(text):]
+                found = True
+                break
+        if found == False:
+            raise Exception("String not able to be mapped: %s" % s)
+    return tuple(result)
+    
+def text_to_bytes(s, min_length=25):
+    bytelist = list(text_to_values(s, False))
+    while len(bytelist) < min_length: 
+        bytelist.append(0)
+    return array('B', bytelist).tostring()
+
+def ccode_address(address):
+    return (address & 0xff, (address & 0xff00) / 0xff,((address + 0xc00000) & 0xff0000) / 0xffff, 0x00)
+
+def ccode_call_address(address):
+    return (0x08,) + ccode_address(address)
+
+def ccode_goto_address(address):
+    return (0x0a,) + ccode_address(address)
 
 def load_areas(area_filename=None):
     if area_filename is None:
@@ -156,14 +215,20 @@ class Area:
 
 class Script:
     _all_scripts = []
+    _freespace = (0x1545c0, 0x154fff)
+
+    @classproperty
+    def every(cls):
+        return Script._all_scripts
 
     def __init__(self, pointer, endpointer=None):
-        for s in Script._all_scripts:
-            assert s.pointer != pointer
         self.pointer = pointer
         self.endpointer = endpointer
         self.subpointers = set([])
-        self.read_script()
+        if pointer is not None:
+            for s in Script._all_scripts:
+                assert s.pointer != pointer
+            self.read_script()
         Script._all_scripts.append(self)
 
     def __eq__(self, other):
@@ -187,6 +252,20 @@ class Script:
                     else:
                         newlines.append(line)
                 s.lines = newlines
+                s.write_script()
+
+    def replace_item(self, old_item, new_item):
+        for s in self.subscript_closure:
+            newlines = []
+            needs_write = False
+            for line in s.lines:
+                if (tuple(line[:2]) == (0x1d, 0x00) or tuple(line[:2]) == (0x1d, 0x0e)) and line[3] == old_item.index:
+                    needs_write = True
+                    newlines.append([line[0], line[1], line[2], new_item.index])
+                else:
+                    newlines.append(line)
+            s.lines = newlines
+            if needs_write:
                 s.write_script()
 
     @property
@@ -227,11 +306,17 @@ class Script:
                     return True
         return False
 
+    @property
+    def is_swap_safe(self):
+        # Currently, only allow scripts with a depth of 1 to be swapped.
+        return self._swap_safe and all(len(ss.subscripts) == 0 and ss._swap_safe for ss in self.subscripts)
+
     def make_sanctuary_door_always_activate(self):
         assert self.is_sanctuary_door
         assert self.lines[0][0] == 0x07
         assert self.lines[1][0] == 0x1b
         self.lines = self.lines[2:]
+        self.remove_status_effects_off()
         self.lines.insert(-1, (0x05, 0x0B, 0x00))   # encounters on
         self.lines.insert(-1, (0x1F, 0x68))         # exit mouse
         assert tuple(self.lines[-1]) == (0x02,)
@@ -241,8 +326,15 @@ class Script:
         if hasattr(self, "_removed_encounters") and self._removed_encounters:
             return
         keys = [(0x04, 0x0b, 0x00),]
-        self.remove_instructions(keys)
+        self.remove_instructions(keys, [])
         self._removed_encounters = True
+
+    def remove_status_effects_off(self):
+        if hasattr(self, "_removed_status_effects") and self._removed_status_effects:
+            return
+        keys = [(0x1f, 0x41, 0x05),]
+        self.remove_instructions(keys, [])
+        self._removed_status_effects = True
 
     def remove_exit_mouse_store(self):
         if self.is_sanctuary_door:
@@ -252,7 +344,7 @@ class Script:
         if hasattr(self, "_removed_exit_mouse") and self._removed_exit_mouse:
             return
         keys = [(0x1f, 0x68),]
-        self.remove_instructions(keys)
+        self.remove_instructions(keys, [])
         self._removed_exit_mouse = True
 
     def remove_teleports(self):
@@ -263,7 +355,47 @@ class Script:
             (0x1f, 0x21),
             (0x1f, 0x69),
             ]
-        self.remove_instructions(keys)
+        exceptions = [
+            # All post hotel/sleep/bench teleports. Either they normally
+            # teleport you to the same map, or they have been manually
+            # changed to do so in the TeleportObject cleanup.
+            (0x1f, 0x21, 0x02),
+            (0x1f, 0x21, 0x0b),
+            (0x1f, 0x21, 0x0d),
+            (0x1f, 0x21, 0x0e),
+            (0x1f, 0x21, 0x11),
+            (0x1f, 0x21, 0x13),
+            (0x1f, 0x21, 0x27),
+            (0x1f, 0x21, 0x2b),
+            (0x1f, 0x21, 0x2c),
+            (0x1f, 0x21, 0x2e),
+            (0x1f, 0x21, 0x2f),
+            (0x1f, 0x21, 0x30),
+            (0x1f, 0x21, 0x31),
+            (0x1f, 0x21, 0x32),
+            (0x1f, 0x21, 0x33),
+            (0x1f, 0x21, 0x34),
+            (0x1f, 0x21, 0x35),
+            (0x1f, 0x21, 0x36),
+            (0x1f, 0x21, 0x37),
+            (0x1f, 0x21, 0x38),
+            (0x1f, 0x21, 0x39),
+            (0x1f, 0x21, 0x3A),
+            (0x1f, 0x21, 0x66),
+            (0x1f, 0x21, 0xA2),
+            (0x1f, 0x21, 0xC4),
+            # Below are Moonside same-screen teleports
+            (0x1f, 0x21, 0x6A),
+            (0x1f, 0x21, 0x6B),
+            (0x1f, 0x21, 0x6C),
+            (0x1f, 0x21, 0x6F),
+            (0x1f, 0x21, 0x70),
+            (0x1f, 0x21, 0x71),
+            (0x1f, 0x21, 0x72),
+            (0x1f, 0x21, 0xE8),
+            (0x1f, 0x21, 0xE9), # Unused value - for testing
+            ]
+        self.remove_instructions(keys, exceptions)
         self._removed_teleports = True
 
     def remove_party_changes(self):
@@ -273,14 +405,29 @@ class Script:
             (0x1f, 0x11),
             (0x1f, 0x12),
             ]
-        self.remove_instructions(keys)
+        self.remove_instructions(keys, [])
         self._removed_party = True
 
-    def remove_instructions(self, keys):
+    def fix_hotels(self):
+        if hasattr(self, "_fixed_hotels") and self._fixed_hotels:
+            return
+        keys = [
+            (0x04, 0x7f, 0x01), # Flag that indicates you just slept.
+            # Disabling the above flag stops the bug that prevents you from
+            # resleeping at a hotel until you luck into flipping it back off,
+            # but at some hotels it does cause the music to not return.
+            (0x04, 0x02, 0x02), # Flag that indicates you just slept at home.
+            ]
+        self.remove_instructions(keys, [])
+        self._fixed_hotels = True
+
+    def remove_instructions(self, keys, exceptions):
         for s in self.subscript_closure:
             newlines = []
             for line in s.lines:
-                if tuple(line[:2]) in keys:
+                if tuple(line[:2]) in keys and tuple(line[:3]) not in exceptions:
+                    continue
+                if tuple(line[:3]) in keys:
                     continue
                 newlines.append(line)
             if len(newlines) < len(s.lines):
@@ -315,6 +462,16 @@ class Script:
                     e = BattleEntryObject.get(index)
                     es.append(e)
         return sorted(es, key=lambda e: e.index)
+
+    @cached_property
+    def items_given(self):
+        items = []
+        for s in self.subscript_closure:
+            for line in self.lines:
+                if tuple(line[:2]) == (0x1d, 0x00) or tuple(line[:2]) == (0x1d, 0x0e):
+                    i = ItemObject.get(line[3])
+                    items.append(i)
+        return sorted(items, key=lambda i: i.index)
 
     @classmethod
     def get_by_pointer(self, pointer):
@@ -391,6 +548,9 @@ class Script:
             instruction, description = line.split(':')
             instruction = instruction.strip()
             description = description.strip()
+            prefix = instruction[:1]
+            safe = (prefix == '!')
+            instruction = instruction[1:]
             try:
                 key = [int(v, 0x10) for v in instruction.split()[:2]]
             except ValueError:
@@ -398,38 +558,84 @@ class Script:
             key = tuple(key)
 
             if key in [(0x09,), (0x1f, 0xc0)]:
-                scriptdict[key] = (instruction, description, None)
+                scriptdict[key] = (instruction, description, None, safe)
                 continue
 
             length = len(instruction.split())
             assert key not in scriptdict
-            scriptdict[key] = (instruction, description, length)
+            scriptdict[key] = (instruction, description, length, safe)
 
         Script._scriptdict = scriptdict
         return Script.scriptdict
 
+    
+    @classproperty
+    def newlines(self):
+        if hasattr(Script, "_newlines"):
+            return Script._newlines
+
+        newlines = []
+        newitem = []
+        for line in open(path.join(tblpath, "newlines.txt")):
+            line = line.strip()
+            if len(line) == 0:
+                if len(newitem) > 0:
+                    newlines.append(newitem)
+                    newitem = []
+            elif line.startswith("\""):
+                line = line.strip("\"")
+                newitem.append(text_to_values(line))
+            else:
+                newitem.append(tuple([int(a, 0x10) for a in line.split()]))
+        if len(newitem) > 0:
+            newlines.append(newitem)
+        Script._newlines = newlines
+        return Script.newlines
+
     def read_script(self):
         f = open(get_outfile(), "r+b")
         pointer = self.pointer
+        self._swap_safe = True
         self.lines = []
         nesting = 0
+        current_text_line = None
         while True:
             f.seek(pointer)
             key = (ord(f.read(1)),)
+            
+            if key[0] >= 0x20:
+                # Plain text
+                if not current_text_line:
+                    current_text_line = []
+                current_text_line.extend(key)
+                pointer += 1
+                continue
+            
             if key not in self.scriptdict:
                 f.seek(pointer)
                 key = tuple(map(ord, f.read(2)))
             if key in self.scriptdict:
-                instruction, description, length = self.scriptdict[key]
+                instruction, description, length, safe = self.scriptdict[key]
             else:
                 key = (key[0],)
-                instruction, description, length = (
-                    ("%x" % key[0]).upper(), "ERROR", 1)
-                self.scriptdict[key] = (instruction, description, length)
-
+                instruction, description, length, safe = (
+                    ("%x" % key[0]).upper(), "ERROR", 1, False)
+                self.scriptdict[key] = (instruction, description, length, safe)
+            
             if "Display Compressed" in description:
-                description = "ERROR"
-                self.scriptdict[key] = (instruction, description, length)
+                if not current_text_line:
+                    current_text_line = []
+                f.seek(pointer)
+                current_text_line.extend(tuple(map(ord, f.read(length))))
+                pointer += length
+                continue
+                     
+            if current_text_line:
+                self.lines.append(tuple(current_text_line))
+                current_text_line = None
+
+            if safe is False:
+                self._swap_safe = False
 
             if length is None:
                 f.seek(pointer+len(key))
@@ -481,11 +687,26 @@ class Script:
         self.please_write = False
 
     @classmethod
+    def write_new_script(self, lines):
+        new_script = Script(None)
+        new_script.lines = lines
+        if Script._freespace[0] + new_script.length > Script._freespace[1]:
+            raise Exception("No free space for new script.")
+        new_script.pointer = Script._freespace[0]
+        new_script.old_length = new_script.length
+        Script._freespace = (Script._freespace[0] + new_script.length, Script._freespace[1])
+        new_script.write_script()
+        return new_script
+
+    @classmethod
     def get_pretty_line_description(self, line):
+        if line[0] >= 0x20 or line[0] in (0x15, 0x16, 0x17):
+            # Plain text
+            return values_to_text(line), "Plain Text"
         key = (line[0],)
         if key not in self.scriptdict:
             key = tuple(line[:2])
-        instruction, description, length = self.scriptdict[key]
+        instruction, description, length, safe = self.scriptdict[key]
         pretty_line = " ".join(["{0:0>2}".format("%x" % v) for v in line])
         return pretty_line, description
 
@@ -662,12 +883,79 @@ class AncientCave(TableObject):
     flag = 'a'
     flag_description = "with ancient cave mode"
 
+    @classproperty
+    def after_order(self):
+        return [PsiTeleportObject]
+
     @classmethod
     def full_randomize(cls):
         AncientCave.class_reseed("ancient")
         generate_cave()
         super(AncientCave, cls).full_randomize()
 
+    @classmethod
+    def full_cleanup(cls):
+        # Always give ATM Card help text, regardless of flags
+        lines = [
+            (0x01, ),
+            text_to_values("@EarthBound Ancient Cave randomizer version %s." % VERSION),
+            (0x03, 0x00),
+            text_to_values("@Seed: %s" % get_seed()),
+            (0x03, 0x00),
+            text_to_values("@Flags: %s" % get_flags()),
+            (0x1f, 0x21, 0xe9), # Teleport to test location 
+            (0x13, 0x02)]
+        new_atm_help = Script.write_new_script(lines)
+
+        old_atm_help = Script.get_by_pointer(0x5566b)
+        old_atm_help.lines = [ccode_goto_address(new_atm_help.pointer)]
+        old_atm_help.write_script()
+
+        super(AncientCave, cls).full_cleanup()
+
+
+class Dialog(TableObject):
+    flag = 'd'
+    flag_description = "dialogs"
+
+    @classproperty
+    def after_order(self):
+        return [PsiTeleportObject]
+
+    @classmethod
+    def intershuffle(cls):
+        cls.class_reseed("inter")
+        candidates = [tpt for tpt in TPTObject.every if tpt.script and tpt.script.is_swap_safe]
+        shuffled = shuffle_normal(candidates, random_degree=1)
+
+        for a, b in zip(candidates, shuffled):
+            a.address = b.old_data["address"]
+
+    @classmethod
+    def mutate_all(cls):
+        cls.class_reseed("mut")
+        pokey_scripts = [
+            (Script.get_by_pointer(0x57e1c), 0, 1),
+            (Script.get_by_pointer(0x8fb1b), 5, 4),
+            (Script.get_by_pointer(0x8fc2e), 4, 4),
+            (Script.get_by_pointer(0x8fd11), 5, 4),
+            (Script.get_by_pointer(0x8ff31), 4, 4)
+        ]
+        game_scripts = [tpt.script for tpt in TPTObject.every if tpt.script and tpt.script.is_swap_safe]
+        candidates = Script.newlines
+        candidates.extend(random.sample(game_scripts, len(candidates) * 3))
+        chosen = random.sample(candidates, len(pokey_scripts))
+
+        for (pokey_script, pre_lines, post_lines), new_script in zip(pokey_scripts, chosen):
+            if not isinstance(new_script, Script):
+                new_script = Script.write_new_script(new_script)
+            pointer = new_script.pointer
+            call_line = ccode_call_address(pointer)
+            new_lines = pokey_script.lines[0:pre_lines]
+            new_lines.append(call_line)
+            new_lines.extend(pokey_script.lines[-post_lines:])
+            pokey_script.lines = new_lines
+            pokey_script.write_script()
 
 class EventObject(GetByPointerMixin, TableObject):
     def __repr__(self):
@@ -731,6 +1019,26 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             *["%x" % v for v in [self.global_x, self.global_y, self.event_type,
                                  self.event_index, self.enemy_cell.index]])
 
+    def door_description(self):
+        if not self.is_exit:
+            return ("Enemy Cell: %4x Loc: (%4d, %4d) NON-DOOR" %
+                (self.enemy_cell.index, self.global_x, self.global_y))
+        return ("Enemy Cell: %4x Loc: (%4d, %4d) Dest: (%4d, %4d)" %
+            (self.enemy_cell.index, self.global_x, self.global_y, self.new_event.x * 8, self.new_event.y * 8))
+    
+    def serialize(self):
+        result = {
+            "index": self.index,
+            "enemyCell": self.enemy_cell.index,
+            "x": self.global_x,
+            "y": self.global_y,
+            "onShortestPath": self.on_shortest_path
+        }
+        if self.is_exit:
+            result["xDestination"] = self.new_event.x * 8
+            result["yDestination"] = self.new_event.y * 8
+        return result
+
     def connect_exit(self, other, override=False):
         if not override:
             assert not self.connected
@@ -763,11 +1071,34 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
         if hasattr(self, "_connected"):
             return self._connected
         return False
+        
+    @property
+    def incoming_exit(self):
+        if hasattr(self, "_incoming_exit"):
+            return self._incoming_exit
+        return False
+        
+    @property
+    def outgoing_exit(self):
+        if hasattr(self, "_outgoing_exit"):
+            return self._outgoing_exit
+        return False
+    
+    @property
+    def on_shortest_path(self):
+        if hasattr(self, "_on_shortest_path"):
+            return self._on_shortest_path
+        return False
 
     @cached_property
     def event(self):
         return EventObject.get_by_pointer(
             0xF0000 | self.old_data["event_index"])
+
+    @property
+    def new_event(self):
+        return EventObject.get_by_pointer(
+            0xF0000 | self.event_index)
 
     @property
     def script(self):
@@ -891,15 +1222,40 @@ class MapEventObject(GetByPointerMixin, ZonePositionMixin, TableObject):
 class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
     flag = 'g'
     flag_description = "gift box contents"
+    
+    @classproperty
+    def after_order(self):
+        return [PsiTeleportObject, AncientCave]
+
+    @classproperty
+    def unassigned_chests(cls):
+        return [o for o in cls.every if o.is_chest and o.cave_rank is not None and (not hasattr(o, "mutated") or not o.mutated)]
 
     def __repr__(self):
         return "{0:0>2} {1:0>2} {3:0>5} {2:0>4}".format(
             *["%x" % v for v in [self.x, self.y, self.tpt_number,
                                  self.pointer]])
 
-    @classproperty
-    def after_order(self):
-        return [AncientCave]
+    def serialize(self):
+        result = {
+            "index": self.index,
+            "cave_rank": self.cave_rank,
+            "x": self.global_x,
+            "y": self.global_y,
+        }
+        if self.is_money:
+            result["money"] = self.money_value
+        if self.is_chest and not self.is_money:
+            i = self.chest_contents
+            result["name"] = i.name
+            result["isEquipment"] = i.is_equipment
+            result["itemType"] = i.item_type
+        if self.is_sanctuary_boss:
+            other = [m for m in MapSpriteObject.every if m.old_data["tpt_number"] == self.tpt_number]
+            assert len(other) == 1
+            result["bossIndex"] = SANCTUARY_BOSS_INDEXES.index(other[0].index)
+            result["enemyEncounters"] = self.script.enemy_encounters
+        return result    
 
     @property
     def tpt(self):
@@ -990,63 +1346,158 @@ class MapSpriteObject(GetByPointerMixin, ZonePositionMixin, TableObject):
             if self.nearest_exit in c.exits:
                 return c
 
+    def replace_item(self, old_item, new_item):
+        assert(self.chest_contents == old_item)
+        self.tpt.argument = new_item.index
+
     @classmethod
     def mutate_all(cls):
         cls.class_reseed("mut")
-        objs = list(cls.every)
-        random.shuffle(objs)
-        for o in cls.every:
-            if hasattr(o, "mutated") and o.mutated:
-                continue
-            o.reseed(salt="mut")
-            o.mutate()
-            o.mutate_bits()
-            o.mutated = True
+        if 'a' not in get_flags():
+            for o in cls.every:
+                if hasattr(o, "mutated") and o.mutated:
+                    continue
+                o.reseed(salt="mut")
+                o.mutate()
+                o.mutate_bits()
+                o.mutated = True
+            return
+            
+        # Ancient Cave
+        # 0) Set non-in-cave chests to empty, for spoiler clarity
+        # Also set chests that are unreachable to be empty
+        inaccessible_chests = [o for o in cls.every if o.is_chest and o.cave_rank is None and (not hasattr(o, "mutated") or not o.mutated)] 
+        inaccessible_chests += [
+            cls.get(182), cls.get(135),                 # Dungeon man
+            ]
+        for chest in inaccessible_chests:
+            chest.tpt.argument = 0x100
+            chest.mutated = True
+
+        # 1) Place skip-granting items early in the cave
+        early_items_index = [
+            0x7d,   # Backstage pass
+            0xa6,   # King banana
+            0xb8,   # Pencil eraser
+            0xd2,   # Eraser eraser
+            0xfd,   # Carrot key
+        ]
+        early_chests = sorted(cls.unassigned_chests, key=lambda c: c.cave_rank)
+        early_chests = early_chests[:len(early_chests)/3 * 2]
+        chosen = random.sample(early_chests, len(early_items_index))
+        for chest, item_index in zip(chosen, early_items_index):
+            chest.tpt.argument = item_index
+            chest.mutated = True
+
+        # 2) Fill up to 60% of remaining chests with equipment
+        equipment_once = [i for i in ItemObject.ranked if i.rank >= 0 and i.is_equipment]
+        equipment = []
+        for item in equipment_once:
+            equipment.append(item)
+            if not item.limit_one:
+                equipment.append(item)
+                equipment.append(item)
+        franklin_badge = ItemObject.get(0x01)
+        equipment.insert(int(len(equipment) * 0.3), franklin_badge)
+        equipment.insert(int(len(equipment) * 0.7), franklin_badge)
+        
+        chests = cls.unassigned_chests
+        reduced_equipment_count = int(len(chests) * 0.6)
+        if reduced_equipment_count < len(equipment):
+            reduced_equipment_indexes = random.sample(range(len(equipment)), reduced_equipment_count)
+            equipment = [equipment[i] for i in sorted(reduced_equipment_indexes)]
+
+        chosen = sorted(random.sample(chests, len(equipment)), key=lambda c: c.cave_rank)
+        equipment = shuffle_normal(equipment)
+        for chest, new_item in zip(chosen, equipment):
+            chest.tpt.argument = new_item.index
+            chest.mutated = True
+        
+        # 3) Fill remaining chests - candidates are non-equipment, non-key-item, non-condiment
+        candidates =  [i for i in ItemObject.ranked if i.rank >= 0 and not i.is_equipment and not i.is_key_item and i.item_type != 0x28]
+        candidates = shuffle_normal(candidates)
+        chests = sorted(cls.unassigned_chests, key=lambda c: c.cave_rank)
+        for i, chest in enumerate(chests):
+            index = int(round(float(i) / len(chests) * (len(candidates)-1)))
+            new_item = candidates[index]
+            chest.tpt.argument = new_item.index
+            chest.mutated = True
+
 
     def mutate(self):
         if not self.is_chest:
             return
 
         if 'a' not in get_flags():
-            if self.is_money:
-                return
             i = self.chest_contents
-            i = i.get_similar()
+            if self.is_money:
+                i = ItemObject.get(0x5a) #Hamburger
+            if 'wildgifts' in get_activated_codes() or random.random() < 0.2:
+                i = random.choice([item for item in ItemObject.every if not item.is_key_item])
+            else:
+                i = i.get_similar()
             assert self.tpt.argument == self.tpt.old_data["argument"]
             self.tpt.argument = i.index
             return
 
-        # Ancient Cave
-        if not hasattr(ItemObject, "done_ones"):
-            ItemObject.done_ones = set([])
 
-        cave_rank = self.cave_rank
-        if cave_rank is None:
+class SpriteGroupObject(GetByPointerMixin, TableObject):
+    flag = 'p'
+    flag_description = 'pc sprites'
+    
+    def __repr__(self):
+        s = "{0:0>4} {1:0>4} {2:0>2} {3:0>2} {4:0>2} ({5:0>2} {6:0>2}) ({7:0>2} {8:0>2}) {9:0>2}".format(*
+            ["%x" % v for v in
+             [self.index, self.pointer, self.height, self.width, self.size, self.collision_ew_h, self.collision_ew_w, self.collision_ns_h, self.collision_ns_w, self.sprite_count]])
+        return s
+
+    @property
+    def specsattrs(self):
+        specsattrs = super(SpriteGroupObject, self).specsattrs
+        if self.sprite_count <= 8:
+            specsattrs = [s for s in specsattrs if s[0] != "sprites_diagonal"]
+        return specsattrs
+
+    @property
+    def collision(self):
+        return (self.collision_ns_w, self.collision_ns_h, self.collision_ew_w, self.collision_ew_h)
+    
+    @property
+    def sprite_count(self):
+        if self.index == 463:
+            return 8
+        try:
+            raw_size = SpriteGroupObject.get(self.index + 1).pointer - self.pointer
+            return max(0, (raw_size - 9) / 2)
+        except KeyError:
+            return 16 # If we are not yet loaded, assume maximum size
+
+
+    def valid_swap(self, other, exclusions):
+        if self.index in exclusions or other.index in exclusions:
+            return False
+        return self.sprite_count == other.sprite_count and self.collision == other.collision
+
+    def mutate(self):
+        if 'funsize' in get_activated_codes():
             return
-
-        if random.random() < (cave_rank ** 2):
-            candidates = [i for i in ItemObject.ranked
-                          if i.rank >= 0 and not i.is_buyable]
-        else:
-            candidates = [i for i in ItemObject.ranked if i.rank >= 0]
-
-        if (random.random()**4) > cave_rank:
-            temp = [c for c in candidates if c.is_equipment]
-            if temp:
-                cave_rank = cave_rank ** 0.75
-                candidates = temp
-
-        candidates = [c for c in candidates
-                      if not (c.limit_one and c.index in ItemObject.done_ones)]
-        index = int(round(cave_rank * (len(candidates)-1)))
-        chosen = candidates[index]
-        new_item = chosen.get_similar(candidates=candidates)
-        if new_item.limit_one:
-            ItemObject.done_ones.add(new_item.index)
-        self.tpt.argument = new_item.index
+        if self.index not in [1, 2, 3, 4]: # Only randomize 4 main PCs
+            return
+        candidates = [sg for sg in SpriteGroupObject.every if self.size == sg.size and self.collision == sg.collision] # Different than normal valid_swap
+        chosen = random.choice(candidates)
+        self.copy_data(chosen)
+        #self.collision_ns_w = self.old_data["collision_ns_w"]
+        #self.collision_ns_h = self.old_data["collision_ns_h"]
+        #self.collision_ew_w = self.old_data["collision_ew_w"]
+        #self.collision_ew_h = self.old_data["collision_ew_h"]
+        if chosen.sprite_count <= 8:
+            self.sprites_diagonal = chosen.sprites_cardinal
 
 
 class TPTObject(TableObject):
+    flag = 'n'
+    flag_description = 'npc sprites'
+
     @property
     def is_chest(self):
         return self.tpt_type == 2
@@ -1065,12 +1516,122 @@ class TPTObject(TableObject):
         assert pointer & 0xFFC00000 == 0xC00000
         return Script.get_by_pointer(pointer & 0x3FFFFF)
 
+    def mutate(self):
+        chests = [33, 195, 214, 233, 262, 322, 408]
+        tpt_exclusions = [198, # Meteorite (causes Buzz Buzz scene problems)
+            884] # Runaway 5 in Clumsy room (causes softlock)
+        sprite_exclusions = [0, 106, 200, 247, 295, 314, 316, 368,
+            369, 371, 373, 374, 375, 376, 381, 410, 420, 428, 430, 431, 439,
+            440, 441, 456, 462, 463,
+            # Also exclude all chest sprites
+            33, 195, 214, 233, 262, 322, 408]
+
+        if self.index in tpt_exclusions:
+            return
+
+        if self.sprite in chests:
+            self.sprite = random.choice(chests)
+            return
+
+        if self.sprite in sprite_exclusions:
+            return
+
+        current_sprite = SpriteGroupObject.get(self.sprite)
+        candidates = [sg for sg in SpriteGroupObject.every if current_sprite.valid_swap(sg, sprite_exclusions)]
+        self.sprite = random.choice(candidates).index
+
+        # Special fixes
+        if self.index == 795: # Backhoe on bridge
+            f = open(get_outfile(), "r+b")
+            f.seek(0x307AF)
+            f.write(chr(self.sprite % 256))
+            f.write(chr(self.sprite / 256))
+            f.close()
+    
+    def cleanup(self):
+        if 'a' in get_flags() and self.address == 0xc75909:
+            self.address = 0xc68017 # Make home phone a normal phone
+
+
+class PcGfxObject(TableObject):
+    #flag = 'p'
+    #flag_description = 'pc sprites'
+    
+    @classmethod
+    def full_cleanup(cls):
+        if 'funsize' not in get_activated_codes():
+            return
+        cls.class_reseed("mut")
+        # Most values from original EarthBound Reshuffler
+        # Table order: 0 1 2 3 5 6 4
+        potential_pcs = [
+            [1, 8, 17, 21, 5, 27, 34, 16, 1, 453],
+            [2, 9, 18, 22, 25, 28, 34, 393, 2, 454],
+            [3, 10, 19, 23, 25, 29, 34, 394, 3, 3],
+            [4, 11, 20, 24, 25, 30, 34, 295, 4, 362],
+            [5, 8, 5, 5, 5, 27, 34, 457, 5, 453],
+            [6, 8, 6, 6, 5, 27, 34, 16, 6, 453],
+            [25, 11, 25, 25, 25, 29, 34, 26, 25, 25],
+            [39, 8, 39, 39, 25, 35, 34, 39, 39, 39],
+            [44, 10, 44, 44, 48, 29, 34, 394, 48, 44],
+            [45, 10, 45, 45, 25, 29, 34, 394, 45, 382],
+            [46, 8, 47, 47, 25, 35, 34, 46, 46, 46],
+            [51, 8, 51, 51, 51, 35, 34, 51, 51, 51],
+            [149, 8, 149, 149, 25, 31, 34, 149, 149, 149],
+            [150, 8, 150, 150, 25, 32, 34, 150, 150, 150],
+            [182, 10, 182, 182, 25, 29, 34, 357, 182, 182],
+            [435, 8, 435, 435, 25, 27, 34, 435, 435, 435]]
+        if 'funsize' in get_activated_codes():
+            potential_pcs = [
+                [1, 8, 17, 21, 5, 27, 34, 16, 1, 453],
+                [27, 34, 27, 27, 27, 1, 8, 16, 1, 453],
+                [2, 9, 18, 22, 25, 28, 34, 393, 2, 454],
+                [3, 10, 19, 23, 25, 29, 34, 394, 3, 3],
+                [4, 11, 20, 24, 25, 30, 34, 295, 4, 362],
+                [5, 457, 5, 5, 5, 27, 34, 457, 5, 453],
+                [6, 8, 6, 6, 5, 27, 34, 16, 6, 453],
+                [25, 26, 25, 25, 25, 29, 34, 26, 25, 25],
+                [39, 8, 39, 39, 25, 35, 34, 39, 39, 39],
+                [40, 8, 42, 43, 25, 399, 34, 359, 359],
+                [44, 10, 44, 44, 458, 29, 34, 394, 48, 44],
+                [45, 10, 45, 45, 25, 29, 34, 394, 45, 382],
+                [46, 8, 47, 47, 25, 35, 34, 46, 46, 46],
+                [51, 8, 51, 51, 51, 35, 34, 51, 51, 51],
+                [149, 8, 149, 149, 25, 31, 34, 149, 149, 149],
+                [150, 8, 150, 150, 25, 32, 34, 150, 150, 150],
+                [182, 10, 182, 182, 25, 29, 34, 357, 182, 182],
+                [435, 8, 435, 435, 25, 27, 34, 435, 435, 435]]
+        new_pcs = random.sample(potential_pcs, 4)
+
+        for index in [0, 1, 2, 3]: # Only randomize 4 main PCs
+            o = cls.get(index)
+            new_pc = new_pcs[index]
+            o.default   = new_pc[0]
+            o.dead      = new_pc[1]
+            o.ladder    = new_pc[2]
+            o.rope      = new_pc[3]
+            o.tiny      = new_pc[5]
+            o.tiny_dead = new_pc[6]
+            o.robot     = new_pc[4]
+
 
 class MapEnemyObject(GridMixin, TableObject):
     flag = 'a'
 
     rows = 160
     columns = 128
+
+    def serialize(self):
+        result = {
+            "index": self.index,
+            "xBounds": self.x_bounds,
+            "yBounds": self.y_bounds,
+            "caveRank": self.cave_rank,
+            "canonicalExit": self.canonical_exit.index if self.canonical_exit else None,
+            "enemyGroup": self.enemy_group,
+            "area": self.area.label
+        }
+        return result
 
     def set_area(self, area):
         self._area = area
@@ -1202,14 +1763,21 @@ class MapEnemyObject(GridMixin, TableObject):
                 continue
             script.remove_exit_mouse_store()
             script.remove_encounters_off()
+            script.remove_status_effects_off()
             script.remove_teleports()
             script.remove_party_changes()
+            script.fix_hotels()
 
     def randomize(self):
         assert 'a' in get_flags()
 
         # ANCIENT CAVE
+        if not EnemyPlaceObject.recreated:
+            print "Recreating enemy placement groups..."
+            EnemyPlaceObject.recreate()
+
         if self.cave_rank is None:
+            self.enemy_place_index = 0
             return
 
         if not self.enemy_adjacent and random.random() > get_random_degree():
@@ -1250,6 +1818,44 @@ class MapMusicObject(GridMixin, TableObject):
     rows = 80
     columns = 32
 
+class TeleportObject(TableObject):
+    flag = 'a'
+
+    def cleanup(self):
+        if 'a' in get_flags():
+            if self.index == 0x02: # Fourside hotel
+                self.x = 748
+                self.y = 764
+            if self.index == 0x0B: # Onett hotel
+                self.x = 1004
+                self.y = 188
+            if self.index == 0x11: # Threed hotel
+                self.x = 842
+                self.y = 1164
+            if self.index == 0x13: # Twoson hotel
+                self.x = 948
+                self.y = 908
+            if self.index == 0x27: # Happy Happy hotel
+                self.x = 879
+                self.y = 206
+            if self.index == 0x32: # Tenda hotel
+                self.x = 55
+                self.y = 18
+            if self.index == 0x0E: # Summers hotel
+                self.x = 838
+                self.y = 1182
+            if self.index == 0xA2: # Moonside hotel
+                self.x = 817
+                self.y = 733
+            if self.index == 0xC4: # Ness's house
+                self.x = 954
+                self.y = 45
+            if self.index == 0xE8: # Moonside skipping chests
+                self.x = TeleportObject.get(0x70).x
+                self.y = TeleportObject.get(0x70).y
+            if self.index == 0xE9: # Unused value - for testing
+                self.x = 492
+                self.y = 1210
 
 class ZoneMixin(GridMixin):
     rows = 40
@@ -1321,6 +1927,12 @@ class Cluster():
         self.exits = []
         self.optional = False
 
+    def __repr__(self):
+        s = "%s %6x - Rank %3d" % (self.__class__.__name__, self.index, self.rank or 0)
+        for o in self.exits:
+            s += "\n- %s" % o.door_description()
+        return s.strip()
+
     def __eq__(self, other):
         return self.index == other.index
 
@@ -1332,6 +1944,27 @@ class Cluster():
             return False
         assert type(self) is type(other)
         return self.rank < other.rank
+
+    def serialize(self):
+        result = {
+            "index": self.index,
+            "rank": self.rank,
+            "onShortestPath": self.on_shortest_path,
+            "explicitBounds": {
+                "x1": min([ec.x_bounds[0] for ec in self.explicit_enemy_cells]),
+                "x2": max([ec.x_bounds[1] for ec in self.explicit_enemy_cells]),
+                "y1": min([ec.y_bounds[0] for ec in self.explicit_enemy_cells]),
+                "y2": max([ec.y_bounds[1] for ec in self.explicit_enemy_cells])
+            },
+            "areaBounds": {
+                "x1": min([ec.x_bounds[0] for ec in self.enemy_cells]),
+                "x2": max([ec.x_bounds[1] for ec in self.enemy_cells]),
+                "y1": min([ec.y_bounds[0] for ec in self.enemy_cells]),
+                "y2": max([ec.y_bounds[1] for ec in self.enemy_cells])
+            },
+            "doors": self.exits
+        }
+        return result
 
     def generate_image(self, filename=None, chosen_exit=None):
         from subprocess import call
@@ -1378,6 +2011,22 @@ class Cluster():
                 return shortest_paths[goal] + [goal]
 
     @classmethod
+    def mark_shortest_path(cls):
+        shortest_path = Cluster.find_shortest_path()
+        for (i, c) in enumerate(shortest_path):
+            c._on_shortest_path = True
+            try:
+                c2 = shortest_path[i+1]
+                for x in c.exits:
+                    if c.get_connected_cluster(x) is c2:
+                        x._on_shortest_path = True
+                        break
+                else:
+                    raise Exception("Break in path??")
+            except IndexError:
+                break
+
+    @classmethod
     def generate_map(cls):
         shortest_path = Cluster.find_shortest_path()
         for (i, c) in enumerate(shortest_path):
@@ -1408,6 +2057,10 @@ class Cluster():
         return self.area.enemy_cells
 
     @property
+    def explicit_enemy_cells(self):
+        return [exit.enemy_cell for exit in self.exits]
+
+    @property
     def map_sprites(self):
         return self.area.map_sprites
 
@@ -1420,6 +2073,12 @@ class Cluster():
         if hasattr(self, "_rank"):
             return self._rank
         return None
+    
+    @property
+    def on_shortest_path(self):
+        if hasattr(self, "_on_shortest_path"):
+            return self._on_shortest_path
+        return False
 
     @classproperty
     def ranked_clusters(self):
@@ -1446,6 +2105,16 @@ class Cluster():
         if s.startswith("!"):
             force = True
             s = s[1:]
+            
+        incoming = False
+        if s.startswith("("):
+            incoming = True
+            s = s[1:]
+
+        outgoing = False
+        if s.startswith(")"):
+            outgoing = True
+            s = s[1:]
 
         meid, x, y = map(lambda v: int(v, 0x10), s.split())
         if not force:
@@ -1467,6 +2136,8 @@ class Cluster():
         chosen.force = False
         if force:
             chosen.force = True
+        chosen._incoming_exit = incoming
+        chosen._outgoing_exit = outgoing
 
         self.exits.append(chosen)
         self.exits = sorted(self.exits, key=lambda x: x.pointer)
@@ -1492,6 +2163,22 @@ class Cluster():
             assert x is x.canonical_neighbor
             if x not in Cluster.assign_dict and x not in unassigned:
                 unassigned.append(x)
+        return unassigned
+
+    @property
+    def unassigned_incoming_exits(self):
+        unassigned = self.unassigned_exits
+        incoming = [e for e in unassigned if e.incoming_exit]
+        if len(incoming) > 0:
+            return incoming
+        return unassigned
+
+    @property
+    def unassigned_outgoing_exits(self):
+        unassigned = self.unassigned_exits
+        outgoing = [e for e in unassigned if e.outgoing_exit]
+        if len(outgoing) > 0:
+            return outgoing
         return unassigned
 
     @classmethod
@@ -1650,6 +2337,19 @@ def generate_cave():
     sclusters = [mso.nearest_cluster for mso in sbosses]
     random.shuffle(sclusters)
 
+    # Remove the middle door from the Electro Specter cluster.
+    # This turns this cluster into a two-exit cluster, where the left exit 
+    # arrives from the middle hole and departs from the left hole.
+    # This prevents non-Euclidian layouts and can guarantee the boss cannot be 
+    # skipped if incoming-outgoing preferences are set on the remaining doors.
+    # This must be done after the above section to find the boss cluster.
+    electro_specter = [c for c in all_clusters if c.index == 0xf2696]
+    assert len(electro_specter) == 1
+    electro_specter = electro_specter[0]
+    bad_exit = [e for e in electro_specter.exits if e.enemy_cell.index == 0x0138]
+    assert len(bad_exit) == 1
+    electro_specter.exits.remove(bad_exit[0])
+
     checkpoints = [Cluster.home] + sclusters + [Cluster.goal]
     for c in checkpoints:
         all_clusters.remove(c)
@@ -1725,8 +2425,8 @@ def generate_cave():
         assert bb in candidates
         assert bb in chosens
         assert bb.unassigned_exits
-        a, b = (random.choice(aa.unassigned_exits),
-                random.choice(bb.unassigned_exits))
+        a, b = (random.choice(aa.unassigned_outgoing_exits),
+                random.choice(bb.unassigned_incoming_exits))
         Cluster.assign_exit_pair(a, b)
         assert bb.unassigned_exits
         done = [aa, bb]
@@ -1745,8 +2445,8 @@ def generate_cave():
             assert aa.unassigned_exits
             if len(candidates) == 1 and len(aa.unassigned_exits) == 1 and len(bb.unassigned_exits) == 1:
                 raise Exception("Something weird here.")
-            a, b = (random.choice(aa.unassigned_exits),
-                    random.choice(bb.unassigned_exits))
+            a, b = (random.choice(aa.unassigned_outgoing_exits),
+                    random.choice(bb.unassigned_incoming_exits))
             Cluster.assign_exit_pair(a, b)
             assert aa in done
             done.append(bb)
@@ -1817,6 +2517,7 @@ def generate_cave():
     s = Script(0x5e70b)
     lines = []
     lines += [
+        (0x04, 0x58, 0x00),     # enable Winters phones
         (0x04, 0x62, 0x00),     # enable home phone
         (0x04, 0x68, 0x00),     # normal music in onett
         (0x04, 0xC7, 0x00),     # know dad's phone number
@@ -1824,6 +2525,9 @@ def generate_cave():
         (0x04, 0xC9, 0x00),     # know escargo express phone number
         (0x04, 0xA6, 0x01),     # daytime in onett
         (0x04, 0x05, 0x02),     # turn on lights at home
+        (0x04, 0xD5, 0x01),     # Mom heal part 1
+        (0x04, 0x5E, 0x00),     # Mom heal part 2
+        (0x04, 0xAE, 0x00),     # hole dug in dusty dunes
 
         #(0x04, 0x74, 0x01),     # become robots
 
@@ -1851,11 +2555,68 @@ def generate_cave():
     exit_mouse.write_script()
 
     print "Sanitizing cave events..."
+    # Special Events
+    # Giygas - flags necessary to be set upon entering for battle to function
     giygas_enter = Script.get_by_pointer(0x9af3a)
     assert tuple(giygas_enter.lines[0]) == (
         0x06, 0x49, 0x00, 0x2f, 0x99, 0xc9, 0x00)
     giygas_enter.lines[0] = (0x04, 0x74, 0x01)
     giygas_enter.write_script()
+    
+    # Mom in Ness's house - manual changes to get to heal state
+    mom_talk = Script.get_by_pointer(0x750e3)
+    assert tuple(mom_talk.lines[0]) == (
+        0x06, 0x49, 0x00, 0x7d, 0x54, 0xc7, 0x00)
+    mom_talk.lines[0] = (0x0a, 0x24, 0x51, 0xc7, 0x00)
+    mom_talk.write_script()
+
+    # Chaos Theater - remove show, due to panning bug when PC sprites randomized
+    if 'p' in get_flags():
+        chaos_show_trigger = Script.get_by_pointer(0x99fe0)
+        assert tuple(chaos_show_trigger.lines[0]) == (
+            0x06, 0x3f, 0x01, 0x2f, 0x99, 0xc9, 0x00)
+        chaos_show_trigger.lines[0] = (0x0a, 0x2f, 0x99, 0xc9, 0x00)
+        chaos_show_trigger.write_script()
+    
+    # Strong - prevent softlock
+    strong = TPTObject.get(71)
+    assert strong.address == 0xc7699e
+    strong.address = 0xc76b0b
+
+    # Moonside right side #3 teleporter - return to central Moonside
+    teleporter = TPTObject.get(1383)
+    assert teleporter.address == 0xc96fe2
+    teleporter.address = 0xc96e22
+
+    # Bubble Monkey - prevent joining
+    bubble_monkey = Script.get_by_pointer(0x6af6c)
+    assert tuple(bubble_monkey.lines[0]) == (
+        0x1D, 0x05, 0xFF, 0x68)
+    bubble_monkey.lines = bubble_monkey.lines[2:]
+    bubble_monkey.write_script()
+
+    # Andonuts - prevent activating Sky Runner
+    andonuts_tpt = TPTObject.get(0x267)
+    assert andonuts_tpt.address == 0xc6b18d
+    andonuts_tpt.address = 0xc6b4bb
+
+    # Big Foot - always appear
+    bigfoot = TPTObject.get(0x26b)
+    assert bigfoot.address == 0xc6504b
+    bigfoot.flag = TPTObject.get(0x05).flag
+
+    # Shark guarding Frank - always fight
+    shark = TPTObject.get(0x1)
+    shark.address = shark.address + 14
+
+    # War against Giygas is over - go to credits
+    war_over = Script.get_by_pointer(0x9c293)
+    assert len(war_over.lines) == 273
+    war_over.lines = war_over.lines[:69]
+    war_over.lines.append([0x1f, 0x00, 0x00, random.randint(1, 191)])   # Music
+    war_over.lines.append([0x1f, 0x41, 0x0c])                           # Credits
+    war_over.lines.append(ccode_goto_address(0x9C96E))                  # The End
+    war_over.write_script()
 
     #for meo in MapEnemyObject.every:
     #    meo.cave_sanitize_events()
@@ -1865,8 +2626,10 @@ def generate_cave():
         s = Script.get_by_pointer(pointer)
         s.remove_exit_mouse_store()
         s.remove_encounters_off()
+        s.remove_status_effects_off()
         s.remove_teleports()
         s.remove_party_changes()
+        s.fix_hotels()
     f.close()
     for s in Script._all_scripts:
         s.fulfill_scheduled_write()
@@ -1889,7 +2652,7 @@ def replace_sanctuary_bosses():
     bosses = sorted(bosses,
                     key=lambda b: (b.rank, random.random(), b.index))
 
-    BANNED = [0x1ce]  # clumsy robot
+    BANNED = [0x1ce, 0x1c8]  # clumsy robot and master belch
     bosses = [b for b in bosses if b.index not in BANNED]
 
     chosens = []
@@ -1919,6 +2682,9 @@ def replace_sanctuary_bosses():
 
 
 class EnemyPlaceObject(TableObject):
+    recreated = False
+    _write_pointer = None
+
     @classproperty
     def after_order(self):
         return [BattleEntryObject]
@@ -1932,6 +2698,31 @@ class EnemyPlaceObject(TableObject):
             for prob, beo in zip(self.odds[i], self.battle_entries[i]):
                 s += "\n  %s %s" % (prob, str(beo).replace("\n", "\n    "))
         return s.strip()
+    
+    def serialize(self):
+        if self.index == 0:
+            return None
+        result = {
+            "index": self.index,
+            "flag": self.event_flag,
+            "subgroups": []
+        }
+        for i, rate in enumerate(self.sub_group_rates):
+            if rate == 0:
+                continue
+            subgroup = {
+                "subgroup": i,
+                "rate": rate,
+                "entries": []
+            }
+            for prob, beo in zip(self.odds[i], self.battle_entries[i]):
+                subgroup["entries"].append({
+                    "probability": prob,
+                    "enemyEncounter": beo
+                })
+            result["subgroups"].append(subgroup)
+        return result
+
 
     def read_data(self, filename, pointer=None):
         super(EnemyPlaceObject, self).read_data(filename, pointer)
@@ -1956,27 +2747,97 @@ class EnemyPlaceObject(TableObject):
                 if sum(self.odds[i]) == 8:
                     break
         f.close()
+    
+    def write_data(self, filename=None, pointer=None, syncing=False):
+        if not EnemyPlaceObject.recreated:
+            return
+        if EnemyPlaceObject._write_pointer is None:
+            EnemyPlaceObject._write_pointer = self.placement_group_pointer & 0x3FFFFF
+        else:
+            self.placement_group_pointer = EnemyPlaceObject._write_pointer | 0xC00000
+        
+        f = open(filename, "r+b")
+        f.seek(EnemyPlaceObject._write_pointer)
+        write_multi(f, self.event_flag, length=2)
+        for rate in self.sub_group_rates:
+            f.write(chr(rate))
+        for i, rate in enumerate(self.sub_group_rates):
+            if rate == 0:
+                continue
+            if sum(self.odds[i]) < 8:
+                raise Exception("Invalid subgroup odds")
+            for prob, battle_entry in zip(self.odds[i], self.battle_entries[i]):
+                f.write(chr(prob))
+                write_multi(f, battle_entry.index, length=2)
 
-    @cached_property
+        EnemyPlaceObject._write_pointer = f.tell()
+        if EnemyPlaceObject._write_pointer > 0x10c60d:
+            raise Exception("EnemyPlaceObject data too long")
+        f.close()
+        super(EnemyPlaceObject, self).write_data(filename, pointer, syncing)
+
+    
+    @classmethod
+    def recreate(cls):
+        # All of the potential sets of enemies used in the existing placements
+        mobs = set(reduce((lambda x, y: x + reduce(lambda a, b: a + b, y.itervalues(), [])), map(lambda x: x.battle_entries, EnemyPlaceObject.every), []))
+        mobs.remove(BattleEntryObject.get(0x0))
+        mobs = sorted(mobs, reverse=True)
+        butterfly = mobs.pop()
+        mobs = shuffle_normal(mobs)
+        butterfly_place = EnemyPlaceObject.valid_ranked_placements[0]
+
+        for place in EnemyPlaceObject.every:
+            #Erase rank cache
+            place._rank = None
+            # Save the 0-index object as it is the magical no-enemy object
+            if place.index == 0:
+                continue
+            # Save the Magic Butterfly alone object
+            if place == butterfly_place:
+                continue
+            # Create a basic enemy placement. No flags, high chance of encounter, even odds of 4 enemies
+            place.event_flag = 0
+            place.sub_group_rates[1] = 0
+            if len(mobs) == 0:
+                place.odds = { 0: [], 1: [] }
+                place.sub_group_rates[0] = 0
+                continue 
+                
+            place.sub_group_rates[0] = random.randint(50,100)
+            place.odds = { 0: [2, 2, 2, 2], 1: [] }
+            place.battle_entries = defaultdict(list)
+            for i in xrange(4):
+                place.battle_entries[0].append(mobs.pop() if len(mobs) else butterfly)
+
+        # Erase current rank info
+        EnemyPlaceObject._valid_ranked_placements = None
+        c = EnemyPlaceObject.ranked
+        EnemyPlaceObject.recreated = True
+
+    @property
     def rank(self):
+        if hasattr(self, "_rank") and self._rank is not None:
+            return self._rank
         if self.index == 0:
-            return -1
+            self._rank = -1
+            return self.rank
 
         if 0 not in self.sub_group_rates or self.sub_group_rates[0] == 0:
-            return -1
-
-        #if sum(self.sub_group_rates.values()) == 0:
-        #    return -1
+            self._rank = -1
+            return self.rank
 
         try:
-            return max([beo.rank for i in self.battle_entries.keys()
+            self._rank = max([beo.rank for i in self.battle_entries.keys()
                         for beo in self.battle_entries[i]])
+            return self.rank
         except ValueError:
-            return -1
+            self._rank = -1
+            return self.rank
 
     @classproperty
     def valid_ranked_placements(cls):
-        if hasattr(EnemyPlaceObject, "_valid_ranked_placements"):
+        if hasattr(EnemyPlaceObject, "_valid_ranked_placements") and EnemyPlaceObject._valid_ranked_placements is not None:
             return EnemyPlaceObject._valid_ranked_placements
 
         EnemyPlaceObject._valid_ranked_placements = [
@@ -1994,6 +2855,12 @@ class BattleEntryObject(TableObject):
         for a, e in zip(self.activities, self.enemies):
             s += "\n{0:0>2} {1}".format("%x" % a, e)
         return s.strip()
+
+    def serialize(self):
+        result = []
+        for a, e in zip(self.activities, self.enemies):
+            result.append({ "activity": a, "enemy": e.name })
+        return result
 
     def read_data(self, filename, pointer=None):
         super(BattleEntryObject, self).read_data(filename, pointer)
@@ -2048,6 +2915,9 @@ class ItemObject(TableObject):
 
     @property
     def rank(self):
+        if self.index == 0: # 'Null' item has a cost so will get incorrectly ranked
+            return -1
+
         if self.is_key_item:
             if 'a' in get_flags() and not self.get_bit("nogive"):
                 return 1000001
@@ -2077,11 +2947,42 @@ class ItemObject(TableObject):
                 return True
 
         return False
+    
+    @property
+    def script_sources(self):
+        return [s for s in Script.every if self in s.items_given]
+
+    @property
+    def chest_sources(self):
+        return [t for t in MapSpriteObject.every if t.is_chest and self == t.chest_contents]
+    
+    @property
+    def all_sources(self):
+        sources = self.script_sources
+        sources.extend(self.chest_sources)
+        return sources
 
     def cleanup(self):
         if 'a' in get_flags() and not (
                 self.is_sellable or self.get_bit("nogive")):
             self.price = max(self.price, 2)
+        
+        if "devmode" in get_activated_codes() and self.index == 0x9e: # spawn toggler
+            self.name_text = text_to_bytes("Spawn Toggler", 25)
+            toggle_script = Script.get_by_pointer(0x6fc94)
+            toggle_script.lines = [
+                (0x01,),
+                (0x06, 0x0b, 0x00, 0xaf, 0xfc, 0xc6, 0x00),
+                text_to_values("@Spawns set off", False),
+                (0x04, 0x0b, 0x00),
+                (0x13,),
+                (0x02,),
+                text_to_values("@Spawns set on", False),
+                (0x05, 0x0b, 0x00),
+                (0x13,),
+                (0x02,),
+            ]
+            toggle_script.write_script()
 
 
 class ShopObject(TableObject):
@@ -2134,6 +3035,33 @@ class ShopObject(TableObject):
         self.item_ids = new_item_ids
 
 
+class BgDataObject(TableObject):
+    flag = 'b'
+    flag_description = "backgrounds"
+
+    def mutate(self):
+        matching_depths = [b for b in BgDataObject.every if b.color_depth == self.color_depth]
+        source = random.choice(matching_depths)
+        self.palette = source.old_data["palette"]
+        self.palette_cycle = source.old_data["palette_cycle"]
+        self.palette_cycle_1_begin = source.old_data["palette_cycle_1_begin"]
+        self.palette_cycle_1_end = source.old_data["palette_cycle_1_end"]
+        self.palette_cycle_2_begin = source.old_data["palette_cycle_2_begin"]
+        self.palette_cycle_2_end = source.old_data["palette_cycle_2_end"]
+        self.palette_changing_speed = source.old_data["palette_changing_speed"]
+
+        source = random.choice(BgDataObject.every)
+        self.scrolling_movement_1 = source.old_data["scrolling_movement_1"]
+        self.scrolling_movement_2 = source.old_data["scrolling_movement_2"]
+        self.scrolling_movement_3 = source.old_data["scrolling_movement_3"]
+        self.scrolling_movement_4 = source.old_data["scrolling_movement_4"]
+
+        source = random.choice(BgDataObject.every)
+        self.distortion_1 = source.old_data["distortion_1"]
+        self.distortion_2 = source.old_data["distortion_2"]
+        self.distortion_3 = source.old_data["distortion_3"]
+        self.distortion_4 = source.old_data["distortion_4"]
+
 class ExperienceObject(TableObject):
     def cleanup(self):
         if 'a' in get_flags():
@@ -2182,12 +3110,14 @@ class EnemyObject(TableObject):
         "weakness_flash": None,
         "weakness_paralysis": None,
         "weakness_hypnosis": None,
+        "battle_palette": None,
     }
     intershuffle_attributes = [
-        "hp", "pp", "xp", "money", "level",
+        "hp", "xp", "money", "level",
         "offense", "defense", "speed", "guts", "iq", "miss_rate",
         ("drop_item_index", "drop_frequency"), "status",
         "mirror_success_rate",
+        "battle_palette",
         ]
     randomize_attributes = [
         #"order",
@@ -2196,13 +3126,21 @@ class EnemyObject(TableObject):
         #("action1", "action2", "action3", "action4"),
         ]
 
+    def __repr__(self):
+        s = "%s %x %s" % (self.__class__.__name__, self.index, self.name)
+        return s.strip()
+
     @property
     def is_boss(self):
         return self.boss_flag or self.death_sound
 
     @property
+    def is_npc(self):
+        return not self.is_boss and self.out_of_battle_sprite == 0
+
+    @property
     def intershuffle_valid(self):
-        return not self.is_boss
+        return not self.is_boss and not self.is_npc
 
     @property
     def name(self):
@@ -2297,11 +3235,193 @@ class InitialStatsObject(TableObject):
                 self.add_item(0x11)  # cracked bat
                 self.add_item(0xC5)  # exit mouse
 
+        if "devmode" in get_activated_codes() and self.index == 0:
+            self.add_item(0x9E)  # spawn toggler
+
         if "easymodo" in get_activated_codes():
             self.level = 99
+            self.add_item(0x01)  # franklin badge
+            self.add_item(0x3E)  # star pendant
             if self.index == 0:
                 self.money = 65000
 
+
+class PsiAbilityObject(TableObject):
+    def cleanup(self):
+        if 'k' in get_flags() and 'a' not in get_flags() and self.name_index == 0x11 and self.greek_letter == 0x01: # Teleport Alpha
+            self.ness_level = 1
+
+class PsiTeleportObject(TableObject):
+    flag = 'k'
+    flag_description = 'with keysanity mode'
+    _results = None
+
+    @property
+    def name(self):
+        return bytes_to_text(self.name_text)
+    
+    def mutate(self):
+        if 'a' in get_flags():
+            return # Disable Keysanity if Ancient Cave on
+        if len(self.name) > 0:
+            self.flag = 0xd9 # Pyramid entrance ready
+        if self.index == 13: # Add South Winters teleport
+            self.name_text = text_to_bytes("South Winters", 25)
+            self.x = 26
+            self.y = 595
+            self.flag = 0xd9 # Pyramid entrance ready
+        if self.index == 15: # Add North Onett teleport
+            self.name_text = text_to_bytes("North Onett", 25)
+            self.x = 322
+            self.y = 54
+            self.flag = 0xd9 # Pyramid entrance ready
+
+            
+    @classmethod
+    def check_legal_keysanity(cls):
+        # Rather than a post-check, this would be better served as placing things logically in the first place.
+        # But this is sufficient for now.
+        if PsiTeleportObject._results is None:
+            return False
+        mapping = dict(PsiTeleportObject._results)
+        if mapping[ItemObject.get(0xb4)] is ItemObject.get(0x01): # Franklin badge at Wad of bills
+            return False
+        if mapping[ItemObject.get(0x01)] is ItemObject.get(0xb8): # Pencil eraser at Franklin badge
+            return False
+        if mapping[ItemObject.get(0xb4)] is ItemObject.get(0xb8): # Pencil eraser at Wad of bills
+            return False
+        if mapping[ItemObject.get(0xfd)] is ItemObject.get(0xb7): # Signed banana at Carrot key
+            return False
+        if mapping[ItemObject.get(0xfd)] is ItemObject.get(0xb6): # Diamond at Carrot key
+            return False
+        if mapping[ItemObject.get(0xa6)] is ItemObject.get(0xb6): # Diamond at King banana
+            return False
+        if mapping[ItemObject.get(0xb7)] is ItemObject.get(0xb6): # Diamond at Signed banana
+            return False
+        if mapping[ItemObject.get(0xd3)] is ItemObject.get(0xa4): # Shyness book at Tendakraut
+            return False
+        return True
+        
+
+    @classmethod
+    def serialize(cls):
+        def serialize_result(result):
+            return {
+                "item": result[1].name,
+                "destination": result[0].name
+            }
+        return map(serialize_result, PsiTeleportObject._results)
+
+    @classmethod
+    def intershuffle(cls):
+        cls.class_reseed("inter")
+        if 'a' in get_flags():
+            return # Disable Keysanity if Ancient Cave on
+        key_items_index = [
+            0x01,   # Franklin badge
+            #0x69,   # Jar of Fly Honey - Chest handled differently, at 0x7dacb.
+            0xa4,   # Shyness book
+            0xa6,   # King banana
+            0xaa,   # Key to the shack
+            0xaf,   # Hawk eye
+            0xb0,   # Bicycle
+            0xb4,   # Wad of bills
+            0xb6,   # Diamond
+            0xb7,   # Signed banana
+            0xb8,   # Pencil eraser
+            0xc0,   # Key to the tower
+            0xca,   # Town map
+            0xcc,   # Suporma
+            0xd3,   # Tendakraut
+            0xfd,   # Carrot key
+        ]
+        # TODO: Cache this when final key items list decided.
+        a =  [me for me in MapEventObject.every]
+        b = [ms for ms in MapSpriteObject.every]
+        for o in a + b:
+            o.script
+        Script.get_by_pointer(0x9d95e) # Tendakraut
+
+        source_items = map(lambda x: ItemObject.get(x), key_items_index)
+        destination_sets = map(lambda x: x.all_sources, source_items)
+        new_items = list(source_items)
+
+        new_items.remove(ItemObject.get(0xd3)) # Tendakraut
+        new_items.append(ItemObject.get(0x69)) # Jar of Fly Honey
+        new_items.remove(ItemObject.get(0xcc)) # Suporma
+        new_items.append(ItemObject.get(0xc1)) # Meteorite piece
+
+        while not cls.check_legal_keysanity():
+            random.shuffle(new_items)
+            PsiTeleportObject._results = zip(source_items, new_items)
+
+        for (source_item, new_item, destination_set) in zip(source_items, new_items, destination_sets):
+            for destination in destination_set:
+                destination.replace_item(source_item, new_item)
+                destination.mutated = True
+
+
+    @classmethod
+    def full_cleanup(cls):
+        if 'a' in get_flags():
+            print "WARNING: Keysanity and Ancient Cave modes are incompatible. Keysanity has been disabled."
+            super(PsiTeleportObject, cls).full_cleanup()
+            return
+
+        if 'k' not in get_flags():
+            super(PsiTeleportObject, cls).full_cleanup()
+            return
+
+        # Patch Bubble Monkey rope interaction
+        bubble_monkey_rope = Script.get_by_pointer(0x97f72)
+        lines = bubble_monkey_rope.lines
+        bubble_monkey_rope.lines = lines[:1] + lines[-2:]
+        bubble_monkey_rope.write_script()
+
+        # Patch intro script to set all teleports available immediately
+        intro = Script.get_by_pointer(0x5e70b)
+        patch_lines = intro.lines[:2] + [
+            (0x04, 0xd9, 0x00), # Enable Pyramid entrance and all teleports
+            (0x04, 0x8c, 0x00), # Enable Venus giving item
+            (0x02, )]
+        patch = Script.write_new_script(patch_lines)
+        assert patch.length == 13
+        intro.lines = [ccode_call_address(patch.pointer)] + [(0x00, )] + intro.lines[2:]
+        intro.write_script()
+
+        # Patch Montague to always show up
+        montague = TPTObject.get(0x2f8)
+        assert montague.address == 0xc60349
+        montague.flag = 0
+
+        # Patch Mr Spoon to request autograph even after he's received it
+        spoon = TPTObject.get(0x38d)
+        #assert spoon.address == 0xc826bc - could be changed in Dialog shuffle
+        spoon.address = 0xc82468
+
+        # Patch Bubble Monkey to appear at north shore as soon as he runs off with his gal
+        monkey = Script.get_by_pointer(0x882bd)
+        patch_lines = monkey.lines[:2] + [(0x04, 0x76, 0x02), (0x02, )] # Enable Monkey at north shore
+        patch = Script.write_new_script(patch_lines)
+        assert patch.length == 9
+        monkey.lines = [ccode_call_address(patch.pointer)] + monkey.lines[2:]
+        monkey.write_script()
+
+        # Patch Dr Andonuts to recognize Ness isn't Jeff
+        andonuts = Script.get_by_pointer(0x6b18d)
+        patch_lines = andonuts.lines[:2] + [ # check the normal flags first
+            (0x19, 0x10, 0x01), # check character in slot 1
+            (0x0b, 0x03), # is it Jeff?
+            (0x1b, 0x03) + ccode_address(0x6b18d), # go to normal andonuts text
+            ccode_goto_address(0x6b56e), # go to generic text for Ness
+            (0x02, )] 
+        patch = Script.write_new_script(patch_lines)
+        andonuts_tpt = TPTObject.get(0x267)
+        assert andonuts_tpt.address == 0xc6b18d
+        andonuts_tpt.address = 0xc00000 + patch.pointer
+
+        super(PsiTeleportObject, cls).full_cleanup()
+     
 
 if __name__ == "__main__":
     try:
@@ -2317,15 +3437,40 @@ if __name__ == "__main__":
             "easymodo": ["easymodo"],
             "mapper": ["mapper"],
             "giygastest": ["giygastest"],
+            "funsize": ["funsize"],
+            "wildgifts": ["wildgifts"],
+            "devmode": ["devmode"]
         }
         run_interface(ALL_OBJECTS, snes=True, codes=codes)
 
-        hexify = lambda x: "{0:0>2}".format("%x" % x)
-        numify = lambda x: "{0: >3}".format(x)
-        minmax = lambda x: (min(x), max(x))
-
         clean_and_write(ALL_OBJECTS)
         rewrite_snes_meta("EB-AC", VERSION, lorom=False)
+
+        # Spoiler / Map data generation
+        print("Making spoiler/map file...")
+        spoiler_file = open((get_outfile()[:-4] + ".spoiler.json"), "w")
+        spoiler_object = {
+            "info": {
+                "version": VERSION,
+                "seed": get_seed(),
+                "flags": get_flags(),
+                "codes": get_activated_codes(),
+                "timestamp": int(time() * 1000)
+            },
+            "chests": [m for m in MapSpriteObject.every if m.is_chest]
+        }
+        if 'k' in get_flags() and 'a' not in get_flags():
+            spoiler_object["keysanity"] = PsiTeleportObject.serialize()
+        if 'a' in get_flags():
+            Cluster.mark_shortest_path()
+        if 'a' in get_flags() or "devmode" in get_activated_codes():
+            spoiler_object["clusters"] = Cluster.generate_clusters()
+            spoiler_object["bosses"] = [mso for mso in MapSpriteObject.every if mso.index in SANCTUARY_BOSS_INDEXES]
+        if "devmode" in get_activated_codes():
+            # This adds multiple MB to the file and is only useful for developers, so do not generate it by default.
+            spoiler_object["enemies"] = MapEnemyObject.every
+        json.dump(spoiler_object, spoiler_file, default=(lambda x: x.serialize()))
+        spoiler_file.close()
 
         if "mapper" in get_activated_codes():
             Cluster.generate_map()

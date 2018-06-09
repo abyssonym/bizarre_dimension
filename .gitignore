@@ -1,0 +1,14 @@
+.vscode/
+maps/
+working/
+build/
+dist/
+*.bak
+*.bst
+*.png
+*.bin
+*.smc
+*.spec
+*.srm
+*.spoiler.json
+*.sym
